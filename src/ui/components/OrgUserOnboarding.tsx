@@ -1,0 +1,448 @@
+import React, { useState } from "react";
+import { useAppContext } from "../../store/AppContext";
+import { useAuth } from "../../store/AuthContext";
+import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award } from "lucide-react";
+import { OrgMember } from "../../types";
+
+interface OrgUserOnboardingProps {
+  courseId?: string;
+}
+
+export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }) => {
+  const { currentUser } = useAuth();
+  const { orgMembers, addOrgMember, deleteOrgMember, updateOrgMember, courses, addEnrollmentRequest, organizations } = useAppContext();
+
+  const [activeTab, setActiveTab] = useState<'instructors' | 'students'>('instructors');
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Form State
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [department, setDepartment] = useState("");
+  const [selectedCourseId, setSelectedCourseId] = useState(courseId || "");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!currentUser) return null;
+
+  const currentOrgId = currentUser.role === 'organization' ? `org_${currentUser.id}` : 
+    (orgMembers.find(m => m.email === currentUser.email)?.orgId || "");
+  
+  const myOrg = organizations.find(o => o.id === currentOrgId || o.ownerId === currentUser.id);
+  const orgType = myOrg?.orgType || 'basic';
+  const classOrCourseText = orgType === 'basic' ? 'Class' : 'Course';
+
+  // Filter members belonging to this org
+  const orgStaff = orgMembers.filter(
+    (m) => (m.orgId === currentOrgId || m.orgId === currentUser.id) && m.role === 'instructor'
+  );
+
+  const orgStudents = orgMembers.filter(
+    (m) => (m.orgId === currentOrgId || m.orgId === currentUser.id) && m.role === 'student'
+  );
+
+  const myCourses = currentUser.role === 'organization' 
+    ? courses.filter(c => c.orgId === currentUser.id || c.orgId === currentOrgId)
+    : courses.filter(c => orgMembers.some(m => m.email === currentUser.email && m.courseIds?.includes(c.id)));
+
+  const handleOnboardUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim()) return;
+
+    setIsSubmitting(true);
+    const newMember: OrgMember = {
+      id: `member_${crypto.randomUUID()}`,
+      orgId: currentOrgId,
+      name: name.trim(),
+      email: email.trim(),
+      role: activeTab === 'instructors' ? 'instructor' : 'student',
+      department: department.trim() || (activeTab === 'instructors' ? 'General Faculty' : 'General Program'),
+      courseIds: selectedCourseId ? [selectedCourseId] : [],
+      joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      status: 'invited',
+    };
+
+    try {
+      await addOrgMember(newMember);
+
+      // Automatically create an approved enrollment for both students and instructors if a course is selected
+      if (selectedCourseId) {
+        await addEnrollmentRequest({
+          id: `req_${crypto.randomUUID()}`,
+          userId: newMember.id,
+          orgId: currentOrgId,
+          courseId: selectedCourseId,
+          status: 'approved',
+          userName: newMember.name,
+          courseTitle: myCourses.find((c) => c.id === selectedCourseId)?.title || `Assigned ${classOrCourseText}`,
+        });
+      }
+
+      setSuccessMsg(
+        `Successfully invited ${name} as ${activeTab === 'instructors' ? 'Staff Instructor' : 'Enrolled Student'}!`
+      );
+      setName("");
+      setEmail("");
+      setDepartment("");
+      if (!courseId) setSelectedCourseId("");
+      setTimeout(() => setSuccessMsg(""), 4000);
+    } catch (err) {
+      console.error("Error inviting member:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBulkImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsSubmitting(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      if (!text) {
+        setIsSubmitting(false);
+        return;
+      }
+
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      let count = 0;
+
+      for (const line of lines) {
+        if (line.toLowerCase().includes('name,email')) continue;
+
+        const parts = line.split(',');
+        if (parts.length >= 2) {
+          const name = parts[0].trim();
+          const email = parts[1].trim();
+
+          const newMember: OrgMember = {
+            id: `member_${crypto.randomUUID()}`,
+            orgId: currentOrgId,
+            name,
+            email,
+            role: activeTab === 'instructors' ? 'instructor' : 'student',
+            department: activeTab === 'instructors' ? 'General Faculty' : 'General Program',
+            courseIds: selectedCourseId ? [selectedCourseId] : [],
+            joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            status: 'invited',
+          };
+          await addOrgMember(newMember);
+          
+          if (selectedCourseId) {
+            await addEnrollmentRequest({
+              id: `req_${crypto.randomUUID()}`,
+              userId: newMember.id,
+              orgId: currentOrgId,
+              courseId: selectedCourseId,
+              status: 'approved',
+              userName: newMember.name,
+              courseTitle: myCourses.find((c) => c.id === selectedCourseId)?.title || `Assigned ${classOrCourseText}`,
+            });
+          }
+          count++;
+        }
+      }
+      setIsSubmitting(false);
+      setSuccessMsg(`Successfully imported ${count} users!`);
+      setTimeout(() => setSuccessMsg(""), 4000);
+    };
+    reader.onerror = () => {
+      console.error("Error reading file");
+      setIsSubmitting(false);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const filteredStaff = orgStaff.filter(
+    (s) =>
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.department && s.department.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const filteredStudents = orgStudents.filter(
+    (s) =>
+      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.department && s.department.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm p-6 sm:p-8 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
+        <div>
+          <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400 text-sm font-semibold mb-1">
+            <UserPlus className="w-4 h-4" />
+            <span>Organization Management</span>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">User Onboarding Portal</h2>
+          <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
+            Invite instructors as staff members or enroll students into your organization's learning ecosystem.
+          </p>
+        </div>
+
+        {/* Tab Toggle */}
+        <div className="flex items-center bg-slate-100 dark:bg-slate-900/60 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/50 self-start sm:self-auto">
+          <button
+            onClick={() => {
+              setActiveTab('instructors');
+              setSuccessMsg("");
+            }}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'instructors'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            <span>Staff Instructors ({orgStaff.length})</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('students');
+              setSuccessMsg("");
+            }}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'students'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span>Students ({orgStudents.length})</span>
+          </button>
+        </div>
+      </div>
+
+      {successMsg && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 p-4 rounded-xl flex items-center space-x-3 text-sm font-medium animate-in fade-in">
+          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {/* Quick Onboarding Form */}
+      <form onSubmit={handleOnboardUser} className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-3">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center">
+            <UserPlus className="w-4 h-4 mr-2 text-indigo-500" />
+            {activeTab === 'instructors' ? 'Invite New Instructor Staff' : 'Invite New Student User'}
+          </h3>
+          <label className={`cursor-pointer flex items-center px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
+            <Upload className="w-3.5 h-3.5 mr-1.5" /> {isSubmitting ? 'Importing...' : 'Bulk Import (CSV)'}
+            <input type="file" accept=".csv" onChange={handleBulkImport} className="hidden" disabled={isSubmitting} />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={activeTab === 'instructors' ? 'e.g. Dr. Amara Okafor' : 'e.g. Kwame Mensah'}
+              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. user@organization.edu"
+              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              {activeTab === 'instructors' ? 'Department / Subject' : 'Grade / Program Track'}
+            </label>
+            <input
+              type="text"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              placeholder={activeTab === 'instructors' ? 'e.g. Computer Science' : 'e.g. Full-Stack Cohort 1'}
+              className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+
+        {myCourses.length > 0 && !courseId && (
+          <div className="pt-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Assign to {classOrCourseText} (Optional)
+            </label>
+            <select
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              className="w-full sm:w-1/2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">-- No Initial Assignment --</option>
+              {myCourses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="submit"
+            disabled={isSubmitting || !name.trim() || !email.trim()}
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-sm"
+          >
+            <UserCheck className="w-4 h-4" />
+            <span>{isSubmitting ? 'Inviting...' : activeTab === 'instructors' ? 'Invite Staff' : 'Invite Student'}</span>
+          </button>
+        </div>
+      </form>
+
+      {/* Directory Search & List */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h3 className="font-bold text-slate-900 dark:text-white text-base">
+            {activeTab === 'instructors' ? 'Staff Instructors Roster' : 'Student Directory'}
+          </h3>
+
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name, email..."
+              className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+
+        {activeTab === 'instructors' ? (
+          filteredStaff.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700/50">
+              <p className="text-slate-500 dark:text-slate-400 text-sm">No invited staff instructors found.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredStaff.map((member) => (
+                <div
+                  key={member.id}
+                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-600 transition"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
+                      <Briefcase className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">{member.name}</h4>
+                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full flex items-center">
+                          <ShieldCheck className="w-3 h-3 mr-0.5" /> Staff
+                        </span>
+                        {member.status === 'invited' && (
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full">
+                            Invited
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center mt-0.5">
+                        <Mail className="w-3 h-3 mr-1" /> {member.email}
+                      </p>
+                      {member.department && (
+                        <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium mt-1">
+                          Faculty: {member.department}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => deleteOrgMember(member.id)}
+                    className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                    title="Remove Staff"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+        ) : filteredStudents.length === 0 ? (
+          <div className="text-center py-10 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700/50">
+            <p className="text-slate-500 dark:text-slate-400 text-sm">No invited student users found.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredStudents.map((member) => (
+              <div
+                key={member.id}
+                className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-600 transition"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
+                    <GraduationCap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-bold text-slate-900 dark:text-white text-sm">{member.name}</h4>
+                      <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded-full">
+                        Student
+                      </span>
+                      {member.status === 'invited' && (
+                        <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full">
+                          Invited
+                        </span>
+                      )}
+                      {member.status === 'graduated' && (
+                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full flex items-center">
+                          <Award className="w-3 h-3 mr-0.5" /> Graduated
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center mt-0.5">
+                      <Mail className="w-3 h-3 mr-1" /> {member.email}
+                    </p>
+                    {member.department && (
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                        Track: {member.department}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-1">
+                  {member.status !== 'graduated' && (
+                    <button
+                      onClick={() => updateOrgMember(member.id, { status: 'graduated' })}
+                      className="p-2 text-slate-400 hover:text-emerald-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                      title="Graduate student"
+                    >
+                      <Award className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteOrgMember(member.id)}
+                    className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                    title="Remove student"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
