@@ -1,25 +1,34 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { User } from '../types';
 
 interface AuthState {
   currentUser: User | null;
   firebaseUser: FirebaseUser | null;
   loading: boolean;
+  updateCurrentUser: (updates: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
   currentUser: null,
   firebaseUser: null,
   loading: true,
+  updateCurrentUser: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const updateCurrentUser = async (updates: Partial<User>) => {
+    if (!currentUser) return;
+    const docRef = doc(db, 'users', currentUser.id);
+    await updateDoc(docRef, updates);
+    setCurrentUser({ ...currentUser, ...updates });
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -46,7 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ currentUser, firebaseUser, loading }}>
+    <AuthContext.Provider value={{ currentUser, firebaseUser, loading, updateCurrentUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );

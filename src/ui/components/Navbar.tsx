@@ -62,7 +62,10 @@ export const Navbar = () => {
           )}
 
           {currentUser && (
-            <Link to="/dashboard" className={getLinkStyle("/dashboard")}>Dashboard</Link>
+            <>
+              <Link to="/dashboard" className={getLinkStyle("/dashboard")}>Dashboard</Link>
+              <Link to="/settings" className={getLinkStyle("/settings")}>Settings</Link>
+            </>
           )}
 
           <Link to="/lunch" className={`${getLinkStyle("/lunch")} flex items-center space-x-1`}>
@@ -133,7 +136,10 @@ export const Navbar = () => {
           )}
 
           {currentUser && (
-            <Link to="/dashboard" onClick={closeMenu} className={getMobileLinkStyle("/dashboard")}>Dashboard</Link>
+            <>
+              <Link to="/dashboard" onClick={closeMenu} className={getMobileLinkStyle("/dashboard")}>Dashboard</Link>
+              <Link to="/settings" onClick={closeMenu} className={getMobileLinkStyle("/settings")}>Settings</Link>
+            </>
           )}
 
           <Link to="/lunch" onClick={closeMenu} className={`${getMobileLinkStyle("/lunch")} flex items-center space-x-2`}>

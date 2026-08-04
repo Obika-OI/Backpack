@@ -2,21 +2,25 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { Book, MessageSquare, FileText, CheckCircle, Send, Upload, Paperclip, Coffee, Users, Award, Calendar, Video, Info } from "lucide-react";
+import { Book, MessageSquare, FileText, CheckCircle, Send, Upload, Paperclip, Coffee, Users, Award, Calendar, Video, Info, X } from "lucide-react";
 import { ChatMessage } from "../../types";
 import { LunchGames } from "../components/LunchGames";
 import { CourseAssessments } from "../components/CourseAssessments";
 import { CourseSchedule } from "../components/CourseSchedule";
 import { OrgUserOnboarding } from "../components/OrgUserOnboarding";
+import { CourseCertificate } from "../components/CourseCertificate";
+import { FileUpload } from "../components/FileUpload";
 
 const CourseDetails = () => {
     const { courseId } = useParams();
     const { courses, updateCourse, userProgress, updateProgress, materials, addMaterial, sendMessage, enrollmentRequests, orgMembers } = useAppContext();
     const { currentUser } = useAuth();
-    const [activeTab, setActiveTab] = useState<'info' | 'modules' | 'materials' | 'chat' | 'lunch' | 'people' | 'assessments' | 'schedule'>('info');
+    const [activeTab, setActiveTab] = useState<'info' | 'modules' | 'materials' | 'chat' | 'lunch' | 'people' | 'assessments' | 'schedule' | 'certificate'>('info');
     
     // Chat state
     const [chatMsg, setChatMsg] = useState("");
+    const [chatAttachmentUrl, setChatAttachmentUrl] = useState("");
+    const [chatAttachmentType, setChatAttachmentType] = useState<'image' | 'video' | 'document' | undefined>(undefined);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     
     // Materials state
@@ -32,6 +36,10 @@ const CourseDetails = () => {
     const course = courses.find(c => c.id === courseId);
     const progress = userProgress.find(p => p.courseId === courseId && p.userId === currentUser?.id);
     const courseMaterials = materials.filter(m => m.courseId === courseId);
+    
+    const progressPercentage = course && course.modules.length > 0 
+        ? ((progress?.completedModuleIds.length || 0) / course.modules.length) * 100 
+        : 0;
     
     // Access check logic
     const isStudent = currentUser?.role === 'student';
@@ -111,7 +119,7 @@ const CourseDetails = () => {
 
     const handleSendMsg = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!chatMsg.trim() || !currentUser) return;
+        if ((!chatMsg.trim() && !chatAttachmentUrl) || !currentUser) return;
         
         const newMsg: ChatMessage = {
             id: `msg_${crypto.randomUUID()}`,
@@ -119,12 +127,16 @@ const CourseDetails = () => {
             senderId: currentUser.id,
             senderName: currentUser.name,
             text: chatMsg,
-            timestamp: new Date().getTime()
+            timestamp: new Date().getTime(),
+            fileUrl: chatAttachmentUrl,
+            fileType: chatAttachmentType
         };
         
         await sendMessage(newMsg);
         setChatMessages([...chatMessages, newMsg]); // Local optimistic update
         setChatMsg("");
+        setChatAttachmentUrl("");
+        setChatAttachmentType(undefined);
     };
 
     return (
@@ -153,6 +165,9 @@ const CourseDetails = () => {
                 </button>
                 <button onClick={() => setActiveTab('assessments')} className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === 'assessments' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                     <Award className="w-4 h-4 mr-2" /> {isStudent ? 'Transcripts' : 'Assessments'}
+                </button>
+                <button onClick={() => setActiveTab('certificate')} className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === 'certificate' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                    <Award className="w-4 h-4 mr-2" /> Certificate
                 </button>
                 <button onClick={() => setActiveTab('schedule')} className={`px-4 py-3 font-medium text-sm flex items-center transition-colors ${activeTab === 'schedule' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
                     <Calendar className="w-4 h-4 mr-2" /> Timetable
@@ -237,7 +252,14 @@ const CourseDetails = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-400 mb-1">Module Content</label>
-                                        <textarea value={editModuleContent} onChange={e => setEditModuleContent(e.target.value)} rows={5} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white" placeholder="Content text, video links, etc." />
+                                        <textarea value={editModuleContent} onChange={e => setEditModuleContent(e.target.value)} rows={5} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white mb-2" placeholder="Content text, video links, etc." />
+                                        <FileUpload 
+                                            label="Attach File / Video"
+                                            onUpload={(url, type) => {
+                                                const markdown = type === 'image' ? `\n![Image](${url})` : type === 'video' ? `\n[Video Link](${url})` : `\n[Document Link](${url})`;
+                                                setEditModuleContent(prev => prev + markdown);
+                                            }}
+                                        />
                                     </div>
                                     <div className="flex justify-end space-x-2 pt-2">
                                         <button onClick={() => { setIsAddingModule(false); setEditingModuleId(null); }} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors">Cancel</button>
@@ -354,25 +376,56 @@ const CourseDetails = () => {
                                         <div key={i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                                             <span className="text-xs text-slate-500 mb-1">{isMe ? 'You' : msg.senderName}</span>
                                             <div className={`px-4 py-2 rounded-2xl max-w-[70%] ${isMe ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-200'}`}>
-                                                {msg.text}
+                                                {msg.text && <div className="mb-1">{msg.text}</div>}
+                                                {msg.fileUrl && (
+                                                    <div className="mt-2">
+                                                        {msg.fileType === 'image' ? (
+                                                            <img src={msg.fileUrl} alt="attachment" className="max-w-full rounded-lg max-h-48 object-cover" />
+                                                        ) : msg.fileType === 'video' ? (
+                                                            <video src={msg.fileUrl} controls className="max-w-full rounded-lg max-h-48" />
+                                                        ) : (
+                                                            <a href={msg.fileUrl} target="_blank" rel="noreferrer" className="flex items-center text-sm underline opacity-90 hover:opacity-100">
+                                                                <Paperclip className="w-4 h-4 mr-1" /> View Document
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )
                                 })
                             )}
                         </div>
-                        <form onSubmit={handleSendMsg} className="p-4 border-t border-slate-700 flex space-x-2 bg-slate-800 rounded-b-2xl">
-                            <input 
-                                type="text" 
-                                value={chatMsg}
-                                onChange={e => setChatMsg(e.target.value)}
-                                placeholder="Type a message..."
-                                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
-                            <button type="submit" disabled={!chatMsg.trim()} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center justify-center">
-                                <Send className="w-5 h-5" />
-                            </button>
-                        </form>
+                        
+                        <div className="p-4 border-t border-slate-700 bg-slate-800 rounded-b-2xl">
+                            {chatAttachmentUrl && (
+                                <div className="mb-3 flex items-center bg-slate-700/50 p-2 rounded-lg">
+                                    <span className="text-xs text-slate-300 mr-auto truncate">Attached: {chatAttachmentType}</span>
+                                    <button onClick={() => { setChatAttachmentUrl(""); setChatAttachmentType(undefined); }} className="p-1 hover:bg-slate-600 rounded text-slate-400 hover:text-white">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+                            <form onSubmit={handleSendMsg} className="flex space-x-2">
+                                <FileUpload 
+                                    label=""
+                                    onUpload={(url, type) => {
+                                        setChatAttachmentUrl(url);
+                                        setChatAttachmentType(type);
+                                    }}
+                                />
+                                <input 
+                                    type="text" 
+                                    value={chatMsg}
+                                    onChange={e => setChatMsg(e.target.value)}
+                                    placeholder="Type a message..."
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                                <button type="submit" disabled={!chatMsg.trim() && !chatAttachmentUrl} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center justify-center">
+                                    <Send className="w-5 h-5" />
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 )}
                 
@@ -386,6 +439,9 @@ const CourseDetails = () => {
                     <div className="p-4 sm:p-6 bg-slate-950">
                         <CourseAssessments courseId={course.id} isStudent={isStudent} />
                     </div>
+                )}
+                {activeTab === 'certificate' && (
+                    <CourseCertificate course={course} isStudent={isStudent} progress={progressPercentage} />
                 )}
 
                 {activeTab === 'schedule' && (

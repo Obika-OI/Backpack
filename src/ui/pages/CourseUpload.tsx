@@ -13,8 +13,7 @@ const CourseUpload = () => {
     const [description, setDescription] = useState("");
     const [price, setPrice] = useState("");
     const [currency, setCurrency] = useState("NGN");
-    const [paymentTerms, setPaymentTerms] = useState<'one-time' | 'installment'>('one-time');
-    const [requirements, setRequirements] = useState("");
+        const [requirements, setRequirements] = useState("");
     const [applicationProcess, setApplicationProcess] = useState("");
     const [instructorRequirements, setInstructorRequirements] = useState("");
     
@@ -71,8 +70,7 @@ const CourseUpload = () => {
                 description,
                 price: Number(price),
                 currency,
-                paymentTerms,
-                requirements,
+                                requirements,
                 applicationProcess,
                 instructorRequirements,
                 modules
@@ -191,17 +189,6 @@ const CourseUpload = () => {
                                 placeholder="E.g. Interview -> Code Test -> Admission"
                                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 min-h-[100px]"
                             />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-1">Payment Terms</label>
-                            <select
-                                value={paymentTerms}
-                                onChange={(e) => setPaymentTerms(e.target.value as 'one-time' | 'installment')}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500"
-                            >
-                                <option value="one-time">One-Time Payment</option>
-                                <option value="installment">Installment Plan Available</option>
-                            </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1">Instructor Requirements</label>

@@ -3,6 +3,7 @@ import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
 import { Building, MapPin, DollarSign, BookOpen, Send, ShieldCheck, ArrowLeft } from "lucide-react";
 import { useState } from "react";
+import { EnrollmentModal } from "../components/EnrollmentModal";
 
 export const OrgProfile = () => {
     const { orgId } = useParams();
@@ -10,6 +11,7 @@ export const OrgProfile = () => {
     const { organizations, courses, enrollmentRequests, addEnrollmentRequest } = useAppContext();
     const { currentUser } = useAuth();
     const [loading, setLoading] = useState<string | null>(null);
+    const [enrollModalCourse, setEnrollModalCourse] = useState<any>(null);
 
     const org = organizations.find(o => o.id === orgId);
     
@@ -28,7 +30,7 @@ export const OrgProfile = () => {
 
     const orgCourses = courses.filter(c => c.orgId === org.id || c.orgId === org.ownerId);
 
-    const handleEnroll = async (courseId: string, courseTitle: string) => {
+    const handleEnroll = async (courseId: string, courseTitle: string, paymentMethod?: 'one-time'|'installment', reqUrl?: string) => {
         if (!currentUser) {
             navigate('/login');
             return;
@@ -47,6 +49,7 @@ export const OrgProfile = () => {
             });
         } finally {
             setLoading(null);
+            setEnrollModalCourse(null);
         }
     };
 
@@ -139,11 +142,13 @@ export const OrgProfile = () => {
                                                 <span className="text-amber-400 text-sm font-bold px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">Pending Review</span>
                                             ) : (
                                                 <button 
-                                                    onClick={() => handleEnroll(course.id, course.title)}
-                                                    disabled={loading === course.id}
-                                                    className="w-full justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-bold transition flex items-center"
+                                                    onClick={() => {
+                                                        if (!currentUser) navigate('/login');
+                                                        else setEnrollModalCourse(course);
+                                                    }}
+                                                    className="w-full justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition flex items-center"
                                                 >
-                                                    {loading === course.id ? 'Requesting...' : 'Enroll Now'} <Send className="w-4 h-4 ml-2" />
+                                                    Enroll Now <Send className="w-4 h-4 ml-2" />
                                                 </button>
                                             )}
                                         </div>

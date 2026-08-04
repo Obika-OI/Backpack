@@ -10,6 +10,7 @@ import Signup from "../pages/Signup";
 import CourseDetails from "../pages/CourseDetails";
 import Lunch from "../pages/Lunch";
 import { OrgProfile } from "../pages/OrgProfile";
+import { Settings } from "../pages/Settings";
 import { Navbar } from "./Navbar";
 import { AppProvider } from "../../store/AppContext";
 import { AuthProvider, useAuth } from "../../store/AuthContext";
@@ -52,6 +53,9 @@ const Index: React.FC = () => {
                                 } />
                                 <Route path="/course/:courseId" element={
                                     <ProtectedRoute><CourseDetails /></ProtectedRoute>
+                                } />
+                                <Route path="/settings" element={
+                                    <ProtectedRoute><Settings /></ProtectedRoute>
                                 } />
                                 <Route path="/lunch" element={
                                     <ProtectedRoute><Lunch /></ProtectedRoute>

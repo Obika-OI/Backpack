@@ -2,6 +2,7 @@ import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
 import { CheckCircle, XCircle, Clock, BookOpen, TrendingUp, Users, Award, PlayCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import { AnalyticsOverview } from "../components/AnalyticsOverview";
 
 const Dashboard = () => {
     const { enrollmentRequests, updateEnrollmentRequest, orgJoinRequests, updateOrgJoinRequest, courses, userProgress, orgMembers } = useAppContext();
@@ -142,27 +143,7 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {/* Quick Stats */}
-                 <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 flex items-center space-x-4">
-                    <div className="p-3 bg-indigo-500/20 rounded-xl">
-                        <BookOpen className="w-8 h-8 text-indigo-400" />
-                    </div>
-                    <div>
-                        <p className="text-sm text-slate-400 font-medium">Active Courses</p>
-                        <p className="text-2xl font-bold text-white">{myCourses.length}</p>
-                    </div>
-                </div>
-                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 flex items-center space-x-4">
-                    <div className="p-3 bg-emerald-500/20 rounded-xl">
-                        <Users className="w-8 h-8 text-emerald-400" />
-                    </div>
-                    <div>
-                        <p className="text-sm text-slate-400 font-medium">Total Enrollments</p>
-                        <p className="text-2xl font-bold text-white">{orgRequests.filter(r => r.status === 'approved').length}</p>
-                    </div>
-                </div>
-            </div>
+            <AnalyticsOverview courses={myCourses} progressData={userProgress} enrollmentRequests={enrollmentRequests} />
 
             {currentUser.role === 'organization' && (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">

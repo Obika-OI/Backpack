@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useAppContext } from '../../store/AppContext';
 import { useAuth } from '../../store/AuthContext';
 import { Assessment, Submission } from '../../types';
-import { Award, Plus } from 'lucide-react';
+import { Award, Plus, CheckCircle2, Paperclip, X } from 'lucide-react';
 import { ProctoringSession } from './ProctoringSession';
+import { FileUpload } from './FileUpload';
 
 export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, isStudent: boolean }) => {
     const { assessments, submissions, addAssessment, addSubmission, updateSubmissionScore, orgMembers } = useAppContext();
@@ -23,6 +24,7 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
     
     // For submitting
     const [submissionContent, setSubmissionContent] = useState("");
+    const [submissionFileUrl, setSubmissionFileUrl] = useState("");
     const [activeProctoringId, setActiveProctoringId] = useState<string | null>(null);
 
     const handleCreateAssessment = async (e: React.FormEvent) => {
@@ -44,7 +46,7 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
     };
 
     const handleSubmitAssessment = async (assessmentId: string) => {
-        if (!currentUser) return;
+        if (!currentUser || (!submissionContent.trim() && !submissionFileUrl)) return;
         const sub: Submission = {
             id: `sub_${crypto.randomUUID()}`,
             assessmentId,
@@ -52,10 +54,12 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
             courseId,
             submittedAt: new Date().toISOString(),
             content: submissionContent,
+            fileUrl: submissionFileUrl,
             status: 'submitted'
         };
         await addSubmission(sub);
         setSubmissionContent("");
+        setSubmissionFileUrl("");
     };
 
     const handleGradeSubmission = async (submissionId: string) => {
@@ -106,14 +110,21 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
                                             </div>
                                         </div>
                                         {sub ? (
-                                            sub.status === 'graded' ? (
-                                                <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-center">
-                                                    <div className="text-xs uppercase font-bold tracking-wider mb-1">Graded</div>
-                                                    <div className="font-black text-xl">{sub.score} <span className="text-sm text-emerald-500/70">/ {ass.maxScore}</span></div>
-                                                </div>
-                                            ) : (
-                                                <span className="px-3 py-1 bg-amber-500/10 text-amber-400 text-sm font-semibold rounded-full border border-amber-500/20">Pending Review</span>
-                                            )
+                                            <div className="flex flex-col items-end">
+                                                {sub.status === 'graded' ? (
+                                                    <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-center mb-2">
+                                                        <div className="text-xs uppercase font-bold tracking-wider mb-1">Graded</div>
+                                                        <div className="font-black text-xl">{sub.score} <span className="text-sm text-emerald-500/70">/ {ass.maxScore}</span></div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="px-3 py-1 bg-amber-500/10 text-amber-400 text-sm font-semibold rounded-full border border-amber-500/20 mb-2">Pending Review</span>
+                                                )}
+                                                {sub.fileUrl && (
+                                                    <a href={sub.fileUrl} target="_blank" rel="noreferrer" className="flex items-center text-sm text-indigo-400 hover:underline">
+                                                        <Paperclip className="w-4 h-4 mr-1" /> My Attachment
+                                                    </a>
+                                                )}
+                                            </div>
                                         ) : (
                                             <span className="px-3 py-1 bg-slate-800 text-slate-400 text-sm font-semibold rounded-full">Not Submitted</span>
                                         )}
@@ -132,24 +143,38 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
                                                     {(ass.type === 'exam' || ass.type === 'test') && activeProctoringId === ass.id && (
                                                         <ProctoringSession assessmentTitle={ass.title} onComplete={() => setActiveProctoringId(null)} />
                                                     )}
-                                                    <div className="flex space-x-3">
-                                                        <input 
-                                                            type="text" 
-                                                            value={submissionContent} 
-                                                            onChange={(e) => setSubmissionContent(e.target.value)}
-                                                            placeholder="Link to your work (e.g. Google Doc) or text" 
-                                                            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                                        />
-                                                        <button 
-                                                            onClick={() => {
-                                                                handleSubmitAssessment(ass.id);
-                                                                setActiveProctoringId(null);
-                                                            }}
-                                                            disabled={!submissionContent.trim() || ((ass.type === 'exam' || ass.type === 'test') && activeProctoringId !== ass.id)}
-                                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-medium transition"
-                                                        >
-                                                            Submit
-                                                        </button>
+                                                    <div className="flex flex-col space-y-3">
+                                                        {submissionFileUrl && (
+                                                            <div className="flex items-center bg-slate-700/50 p-2 rounded-lg">
+                                                                <span className="text-xs text-slate-300 mr-auto truncate">Attached: Document</span>
+                                                                <button onClick={() => setSubmissionFileUrl("")} className="p-1 hover:bg-slate-600 rounded text-slate-400 hover:text-white">
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        <div className="flex space-x-3">
+                                                            <FileUpload 
+                                                                label=""
+                                                                onUpload={(url) => setSubmissionFileUrl(url)}
+                                                            />
+                                                            <input 
+                                                                type="text" 
+                                                                value={submissionContent} 
+                                                                onChange={(e) => setSubmissionContent(e.target.value)}
+                                                                placeholder="Link to your work or text" 
+                                                                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                            />
+                                                            <button 
+                                                                onClick={() => {
+                                                                    handleSubmitAssessment(ass.id);
+                                                                    setActiveProctoringId(null);
+                                                                }}
+                                                                disabled={(!submissionContent.trim() && !submissionFileUrl) || ((ass.type === 'exam' || ass.type === 'test') && activeProctoringId !== ass.id)}
+                                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-medium transition"
+                                                            >
+                                                                Submit
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
@@ -243,6 +268,11 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
                                                             <div className="mb-3 sm:mb-0">
                                                                 <div className="font-semibold text-white">{student.name}</div>
                                                                 <div className="text-sm text-indigo-400 truncate max-w-xs"><a href={sub.content} target="_blank" rel="noreferrer" className="hover:underline">{sub.content}</a></div>
+                                                                {sub.fileUrl && (
+                                                                    <a href={sub.fileUrl} target="_blank" rel="noreferrer" className="flex items-center text-sm text-indigo-400 hover:underline mt-1">
+                                                                        <Paperclip className="w-4 h-4 mr-1" /> View Attachment
+                                                                    </a>
+                                                                )}
                                                             </div>
                                                             <div className="flex items-center space-x-3">
                                                                 {sub.status === 'graded' ? (

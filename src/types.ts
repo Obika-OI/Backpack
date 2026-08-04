@@ -5,6 +5,8 @@ export interface User {
   name: string;
   role: Role;
   email: string;
+  kycVerified?: boolean;
+  kycDocumentUrl?: string;
 }
 
 export interface Organization {
@@ -16,6 +18,8 @@ export interface Organization {
   baseCurrency: string;
   location?: string;
   orgType?: 'basic' | 'higher' | 'vocational';
+  kycVerified?: boolean;
+  kycDocumentUrl?: string;
 }
 
 export interface Course {
@@ -30,12 +34,14 @@ export interface Course {
   applicationProcess?: string;
   instructorRequirements?: string;
   modules: CourseModule[];
+  certificateConfig?: { enabled: boolean; logoUrl?: string; signatureUrl?: string; customText?: string; orgName?: string; gradeLevel?: string; authorizedSealUrl?: string; qualificationTitle?: string };
 }
 
 export interface CourseModule {
   id: string;
   title: string;
   content: string;
+  fileUrls?: string[];
 }
 
 export interface OrgJoinRequest {
@@ -55,6 +61,8 @@ export interface EnrollmentRequest {
   status: 'pending' | 'approved' | 'rejected';
   userName?: string;
   courseTitle?: string;
+  paymentMethod?: 'one-time' | 'installment';
+  requirementFileUrl?: string;
 }
 
 export interface UserProgress {
@@ -100,6 +108,8 @@ export interface ChatMessage {
   senderName: string;
   text: string;
   timestamp: number;
+  fileUrl?: string;
+  fileType?: 'image' | 'video' | 'document';
 }
 
 export interface Assessment {
@@ -118,7 +128,8 @@ export interface Submission {
   userId: string;
   courseId: string;
   submittedAt: string;
-  content: string; // URL or text
+  content: string;
+  fileUrl?: string;
   score?: number;
   feedback?: string;
   status: 'submitted' | 'graded';

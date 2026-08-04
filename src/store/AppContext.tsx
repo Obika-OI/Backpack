@@ -18,6 +18,7 @@ interface AppState {
   scheduleEvents: ScheduleEvent[];
   
   addOrganization: (org: Organization) => Promise<void>;
+  updateOrganization: (id: string, updates: Partial<Organization>) => Promise<void>;
   addCourse: (course: Course) => Promise<void>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<void>;
   addEnrollmentRequest: (req: EnrollmentRequest) => Promise<void>;
@@ -119,6 +120,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       clearData();
     }
   }, [currentUser]);
+
+  const updateOrganization = async (id: string, updates: Partial<Organization>) => {
+    const docRef = doc(db, 'organizations', id);
+    await updateDoc(docRef, updates);
+  };
 
   const addOrganization = async (org: Organization) => {
     await setDoc(doc(db, 'organizations', org.id), org);
@@ -228,7 +234,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AppContext.Provider value={{
       organizations, courses, enrollmentRequests, orgJoinRequests, orgMembers, userProgress, materials, attendanceRecords, assessments, submissions, scheduleEvents,
-      addOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent
+      addOrganization, updateOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent
     }}>
       {children}
     </AppContext.Provider>
