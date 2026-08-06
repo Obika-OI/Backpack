@@ -32,13 +32,13 @@ const Home = () => {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-md mx-auto sm:max-w-none">
           <Link
             to="/signup"
-            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center text-base sm:text-lg shadow-md hover:shadow-indigo-500/20 active:scale-95"
+            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center text-base sm:text-lg shadow-md hover:shadow-indigo-500/20 active:scale-95"
           >
             Launch Your Future <ArrowRight className="w-5 h-5 ml-2" />
           </Link>
           <Link
             to="/login"
-            className="w-full sm:w-auto bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center text-base sm:text-lg shadow-sm"
+            className="w-full sm:w-auto bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center text-base sm:text-lg shadow-sm"
           >
             Access Portal
           </Link>
@@ -91,7 +91,7 @@ const Home = () => {
           </div>
           <Link
             to="/onboard"
-            className="self-start md:self-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-xl transition shadow-sm"
+            className="self-start md:self-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white font-semibold text-sm rounded-xl transition shadow-sm"
           >
             Get Started Now
           </Link>

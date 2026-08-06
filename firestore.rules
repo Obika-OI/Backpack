@@ -3,21 +3,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Publicly accessible collections for reading course catalog, organizations, and members
     match /organizations/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
+    
     match /courses/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    match /orgMembers/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
+    // Default fallback rule for all application collections (materials, schedule, progress, requests, etc.)
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read: if true;
+      allow write: if request.auth != null;
     }
   }
 }
+

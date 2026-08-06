@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UploadCloud, File, Image as ImageIcon, Video, X } from 'lucide-react';
+import { UploadCloud } from 'lucide-react';
 import { uploadFile } from '../../lib/upload';
 
 interface FileUploadProps {
@@ -14,6 +14,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onUpload, accept = "imag
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // Reset input to allow selecting the same file again
     if (!file) return;
 
     setUploading(true);
@@ -27,7 +28,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onUpload, accept = "imag
       
       onUpload(url, type);
     } catch (err) {
-      setError('Failed to upload file');
+      console.error('Upload Error:', err); setError('Failed to upload file: ' + ((err as Error).message || 'Unknown error'));
     } finally {
       setUploading(false);
     }
@@ -35,7 +36,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onUpload, accept = "imag
 
   return (
     <div className="flex flex-col space-y-2">
-      <label className="cursor-pointer inline-flex items-center justify-center px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium text-white transition-colors">
+      <label className="cursor-pointer inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-900 dark:text-white transition-colors">
         {uploading ? (
           <span className="flex items-center"><UploadCloud className="w-4 h-4 mr-2 animate-pulse" /> Uploading...</span>
         ) : (

@@ -1,12 +1,59 @@
 export type Role = 'student' | 'organization' | 'instructor';
 
+export interface PaystackSubaccount {
+  subaccount_code: string;
+  business_name: string;
+  bank_code: string;
+  bank_name?: string;
+  account_number: string;
+  account_name?: string;
+  percentage_charge: number; // e.g., 90 (%) goes to provider, 10% to platform
+  description?: string;
+  is_verified?: boolean;
+  updatedAt?: string;
+}
+
+export interface PaystackSplitTransaction {
+  id: string;
+  reference: string;
+  courseId: string;
+  courseTitle: string;
+  studentId: string;
+  studentEmail: string;
+  providerId: string;
+  providerType: 'organization' | 'instructor';
+  providerName: string;
+  subaccountCode: string;
+  totalAmount: number;
+  providerShareAmount: number;
+  platformFeeAmount: number;
+  percentageCharge: number;
+  currency: string;
+  status: 'initialized' | 'success' | 'failed';
+  createdAt: string;
+  paymentUrl?: string;
+}
+
+export interface UserDocument {
+  id: string;
+  title: string;
+  url: string;
+  category: 'cv' | 'certificate' | 'id_proof' | 'transcript' | 'other';
+  uploadedAt: string;
+}
+
 export interface User {
   id: string;
   name: string;
   role: Role;
   email: string;
+  bio?: string;
+  headline?: string;
+  cvUrl?: string;
   kycVerified?: boolean;
   kycDocumentUrl?: string;
+  userDocuments?: UserDocument[];
+  paystackSubaccount?: PaystackSubaccount;
 }
 
 export interface Organization {
@@ -20,6 +67,14 @@ export interface Organization {
   orgType?: 'basic' | 'higher' | 'vocational';
   kycVerified?: boolean;
   kycDocumentUrl?: string;
+  address?: string;
+  registrationId?: string;
+  isAccredited?: boolean;
+  accreditingBody?: string;
+  accreditationStatus?: 'accredited' | 'pending' | 'unaccredited';
+  accreditationDocUrl?: string;
+  isDeleted?: boolean;
+  paystackSubaccount?: PaystackSubaccount;
 }
 
 export interface Course {
@@ -30,6 +85,13 @@ export interface Course {
   price: number;
   currency: string;
   paymentTerms?: 'one-time' | 'installment';
+  paymentTermsAllowed?: 'one-time' | 'installment' | 'both';
+  installmentInterval?: 'weekly' | 'monthly' | 'custom';
+  qualificationTitle?: string;
+  qualificationType?: 'bachelors' | 'masters' | 'doctorate' | 'diploma' | 'certificate' | 'professional' | 'other';
+  instructorName?: string;
+  instructorId?: string;
+  requiredDocuments?: string[];
   requirements?: string;
   applicationProcess?: string;
   instructorRequirements?: string;
@@ -37,11 +99,19 @@ export interface Course {
   certificateConfig?: { enabled: boolean; logoUrl?: string; signatureUrl?: string; customText?: string; orgName?: string; gradeLevel?: string; authorizedSealUrl?: string; qualificationTitle?: string };
 }
 
+export interface CourseModuleMedia {
+  id: string;
+  name: string;
+  url: string;
+  type: 'image' | 'video' | 'document';
+}
+
 export interface CourseModule {
   id: string;
   title: string;
   content: string;
   fileUrls?: string[];
+  media?: CourseModuleMedia[];
 }
 
 export interface OrgJoinRequest {
@@ -59,9 +129,11 @@ export interface EnrollmentRequest {
   orgId: string;
   courseId: string;
   status: 'pending' | 'approved' | 'rejected';
+  paymentStatus?: 'unpaid' | 'paid';
   userName?: string;
   courseTitle?: string;
   paymentMethod?: 'one-time' | 'installment';
+  documents?: Record<string, string>;
   requirementFileUrl?: string;
 }
 
@@ -146,3 +218,15 @@ export interface ScheduleEvent {
   meetingUrl?: string; // For the video call
   isActive?: boolean;
 }
+
+export interface AppNotification {
+  id: string;
+  userId?: string;
+  title: string;
+  message: string;
+  type: 'live_class' | 'enrollment' | 'grade' | 'material' | 'info';
+  read: boolean;
+  createdAt: string;
+  linkUrl?: string;
+}
+

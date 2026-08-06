@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBiItj8LGRMwegbzpG1b2hcwZdAhC0uAKQ",
   authDomain: "backpack-9e1e0.firebaseapp.com",
   projectId: "backpack-9e1e0",
-  storageBucket: "backpack-9e1e0.firebasestorage.app",
+  storageBucket: "backpack-9e1e0.appspot.com",
   messagingSenderId: "722513442785",
   appId: "1:722513442785:web:1f1ee7645ad5d7ff3104a0",
   measurementId: "G-DP4GDBREJG"

@@ -11,6 +11,7 @@ import CourseDetails from "../pages/CourseDetails";
 import Lunch from "../pages/Lunch";
 import { OrgProfile } from "../pages/OrgProfile";
 import { Settings } from "../pages/Settings";
+import { Profile } from "../pages/Profile";
 import { Navbar } from "./Navbar";
 import { AppProvider } from "../../store/AppContext";
 import { AuthProvider, useAuth } from "../../store/AuthContext";
@@ -56,6 +57,9 @@ const Index: React.FC = () => {
                                 } />
                                 <Route path="/settings" element={
                                     <ProtectedRoute><Settings /></ProtectedRoute>
+                                } />
+                                <Route path="/profile" element={
+                                    <ProtectedRoute><Profile /></ProtectedRoute>
                                 } />
                                 <Route path="/lunch" element={
                                     <ProtectedRoute><Lunch /></ProtectedRoute>

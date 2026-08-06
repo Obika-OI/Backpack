@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award } from "lucide-react";
-import { OrgMember } from "../../types";
+import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, X, User } from "lucide-react";
+import { OrgMember, User as AppUser } from "../../types";
+import { db } from "../../lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 interface OrgUserOnboardingProps {
   courseId?: string;
@@ -15,13 +17,44 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
   const [activeTab, setActiveTab] = useState<'instructors' | 'students'>('instructors');
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Registered App Users state
+  const [registeredUsers, setRegisteredUsers] = useState<AppUser[]>([]);
+  const [loadingRegisteredUsers, setLoadingRegisteredUsers] = useState(false);
+  const [showAppUsersModal, setShowAppUsersModal] = useState(false);
+  const [appUsersSearch, setAppUsersSearch] = useState("");
+
   // Form State
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState(courseId || "");
+  const [selectedAppUserId, setSelectedAppUserId] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch registered users on Backpack from Firestore
+  useEffect(() => {
+    const fetchRegisteredUsers = async () => {
+      setLoadingRegisteredUsers(true);
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const usersList: AppUser[] = [];
+        snap.forEach(doc => {
+          const u = doc.data() as AppUser;
+          if (u.id !== currentUser?.id) {
+            usersList.push({ ...u, id: doc.id });
+          }
+        });
+        setRegisteredUsers(usersList);
+      } catch (err) {
+        console.error("Error fetching registered users:", err);
+      } finally {
+        setLoadingRegisteredUsers(false);
+      }
+    };
+
+    fetchRegisteredUsers();
+  }, [currentUser?.id]);
 
   if (!currentUser) return null;
 
@@ -193,8 +226,8 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'instructors'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-indigo-600 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-900 dark:text-white'
             }`}
           >
             <Briefcase className="w-3.5 h-3.5" />
@@ -207,8 +240,8 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             }}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'students'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-indigo-600 text-slate-900 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-900 dark:text-white'
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
@@ -231,11 +264,48 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             <UserPlus className="w-4 h-4 mr-2 text-indigo-500" />
             {activeTab === 'instructors' ? 'Invite New Instructor Staff' : 'Invite New Student User'}
           </h3>
-          <label className={`cursor-pointer flex items-center px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
-            <Upload className="w-3.5 h-3.5 mr-1.5" /> {isSubmitting ? 'Importing...' : 'Bulk Import (CSV)'}
-            <input type="file" accept=".csv" onChange={handleBulkImport} className="hidden" disabled={isSubmitting} />
-          </label>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setShowAppUsersModal(true)}
+              className="flex items-center px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-semibold transition"
+            >
+              <Users className="w-3.5 h-3.5 mr-1.5" /> Browse App Users ({registeredUsers.length})
+            </button>
+            <label className={`cursor-pointer flex items-center px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
+              <Upload className="w-3.5 h-3.5 mr-1.5" /> {isSubmitting ? 'Importing...' : 'Bulk Import (CSV)'}
+              <input type="file" accept=".csv" onChange={handleBulkImport} className="hidden" disabled={isSubmitting} />
+            </label>
+          </div>
         </div>
+
+        {registeredUsers.length > 0 && (
+          <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-2">
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 flex items-center">
+              <User className="w-3.5 h-3.5 mr-1 text-indigo-500" /> Pick Existing Registered User on Backpack
+            </label>
+            <select
+              value={selectedAppUserId}
+              onChange={(e) => {
+                const uid = e.target.value;
+                setSelectedAppUserId(uid);
+                const found = registeredUsers.find(u => u.id === uid);
+                if (found) {
+                  setName(found.name || "");
+                  setEmail(found.email || "");
+                }
+              }}
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">-- Choose from Registered Users ({registeredUsers.length}) --</option>
+              {registeredUsers.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.email}) - {u.role.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
@@ -300,7 +370,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           <button
             type="submit"
             disabled={isSubmitting || !name.trim() || !email.trim()}
-            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-sm"
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-slate-900 dark:text-white rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-sm"
           >
             <UserCheck className="w-4 h-4" />
             <span>{isSubmitting ? 'Inviting...' : activeTab === 'instructors' ? 'Invite Staff' : 'Invite Student'}</span>
@@ -316,7 +386,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </h3>
 
           <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 dark:text-slate-400" />
             <input
               type="text"
               value={searchTerm}
@@ -337,7 +407,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
               {filteredStaff.map((member) => (
                 <div
                   key={member.id}
-                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-600 transition"
+                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-300 dark:border-slate-600 transition"
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
@@ -368,7 +438,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
                   <button
                     onClick={() => deleteOrgMember(member.id)}
-                    className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                    className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-white dark:bg-slate-800 transition"
                     title="Remove Staff"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -386,7 +456,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             {filteredStudents.map((member) => (
               <div
                 key={member.id}
-                className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-600 transition"
+                className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-300 dark:border-slate-600 transition"
               >
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
@@ -424,7 +494,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                   {member.status !== 'graduated' && (
                     <button
                       onClick={() => updateOrgMember(member.id, { status: 'graduated' })}
-                      className="p-2 text-slate-400 hover:text-emerald-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                      className="p-2 text-slate-500 dark:text-slate-400 hover:text-emerald-500 rounded-lg hover:bg-slate-200 dark:hover:bg-white dark:bg-slate-800 transition"
                       title="Graduate student"
                     >
                       <Award className="w-4 h-4" />
@@ -432,7 +502,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                   )}
                   <button
                     onClick={() => deleteOrgMember(member.id)}
-                    className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                    className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-white dark:bg-slate-800 transition"
                     title="Remove student"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -443,6 +513,104 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </div>
         )}
       </div>
+
+      {/* App Users Modal */}
+      {showAppUsersModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
+                  <Users className="w-5 h-5 text-indigo-500 mr-2" /> Registered App Users
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Directly invite students and instructors registered on Backpack to your organization
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAppUsersModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or role..."
+                  value={appUsersSearch}
+                  onChange={(e) => setAppUsersSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-3 flex-1">
+              {loadingRegisteredUsers ? (
+                <div className="text-center py-8 text-xs text-slate-500">Loading registered users...</div>
+              ) : registeredUsers.filter(u => 
+                  !appUsersSearch || 
+                  u.name?.toLowerCase().includes(appUsersSearch.toLowerCase()) || 
+                  u.email?.toLowerCase().includes(appUsersSearch.toLowerCase()) ||
+                  u.role?.toLowerCase().includes(appUsersSearch.toLowerCase())
+                ).length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-500">No users found matching query</div>
+              ) : (
+                registeredUsers.filter(u => 
+                  !appUsersSearch || 
+                  u.name?.toLowerCase().includes(appUsersSearch.toLowerCase()) || 
+                  u.email?.toLowerCase().includes(appUsersSearch.toLowerCase()) ||
+                  u.role?.toLowerCase().includes(appUsersSearch.toLowerCase())
+                ).map(u => {
+                  const isAlreadyMember = orgMembers.some(m => m.email === u.email && (m.orgId === currentOrgId || m.orgId === currentUser.id));
+
+                  return (
+                    <div key={u.id} className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700/60 hover:border-indigo-500/40 transition">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-9 h-9 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-sm">
+                          {u.name?.charAt(0) || 'U'}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-slate-900 dark:text-white text-xs">{u.name}</span>
+                            <span className="px-2 py-0.5 text-[10px] uppercase font-bold rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                              {u.role}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</p>
+                        </div>
+                      </div>
+
+                      {isAlreadyMember ? (
+                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-lg flex items-center">
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Member
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setName(u.name || "");
+                            setEmail(u.email || "");
+                            setSelectedAppUserId(u.id);
+                            setShowAppUsersModal(false);
+                            if (u.role === 'instructor') setActiveTab('instructors');
+                            else if (u.role === 'student') setActiveTab('students');
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white text-xs font-semibold rounded-lg transition"
+                        >
+                          Select User
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

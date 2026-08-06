@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, setDoc } from 'firebase/firestore';
-import { Assessment, Submission, ScheduleEvent, Organization, Course, EnrollmentRequest, UserProgress, AttendanceRecord, Material, ChatMessage, OrgJoinRequest, OrgMember } from '../types';
+import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { Assessment, Submission, ScheduleEvent, Organization, Course, EnrollmentRequest, UserProgress, AttendanceRecord, Material, ChatMessage, OrgJoinRequest, OrgMember, AppNotification } from '../types';
 import { useAuth } from './AuthContext';
+import { sendPushNotification } from '../lib/pushNotifications';
 
 interface AppState {
   organizations: Organization[];
@@ -16,13 +17,15 @@ interface AppState {
   assessments: Assessment[];
   submissions: Submission[];
   scheduleEvents: ScheduleEvent[];
+  notifications: AppNotification[];
   
   addOrganization: (org: Organization) => Promise<void>;
   updateOrganization: (id: string, updates: Partial<Organization>) => Promise<void>;
+  deleteOrganization: (id: string) => Promise<void>;
   addCourse: (course: Course) => Promise<void>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<void>;
   addEnrollmentRequest: (req: EnrollmentRequest) => Promise<void>;
-  updateEnrollmentRequest: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+  updateEnrollmentRequest: (id: string, status?: 'approved' | 'rejected', paymentStatus?: 'unpaid' | 'paid') => Promise<void>;
   addOrgJoinRequest: (req: OrgJoinRequest) => Promise<void>;
   updateOrgJoinRequest: (id: string, status: 'approved' | 'rejected') => Promise<void>;
   addOrgMember: (member: OrgMember) => Promise<void>;
@@ -37,9 +40,25 @@ interface AppState {
   updateSubmissionScore: (id: string, score: number, feedback: string) => Promise<void>;
   addScheduleEvent: (event: ScheduleEvent) => Promise<void>;
   updateScheduleEvent: (id: string, updates: Partial<ScheduleEvent>) => Promise<void>;
+  deleteScheduleEvent: (id: string) => Promise<void>;
+  addNotification: (notification: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  clearNotifications: () => void;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
+
+const sanitizeForFirestore = <T extends object>(obj: T): T => {
+  const cleaned = {} as Record<string, unknown>;
+  const record = obj as Record<string, unknown>;
+  for (const key in record) {
+    if (record[key] !== undefined) {
+      cleaned[key] = record[key];
+    }
+  }
+  return cleaned as T;
+};
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { currentUser } = useAuth();
@@ -55,6 +74,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  const addNotification = (notifData: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
+    const newNotif: AppNotification = {
+      ...notifData,
+      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false
+    };
+
+    setNotifications(prev => [newNotif, ...prev]);
+
+    // Send push notification if granted
+    sendPushNotification(newNotif.title, {
+      body: newNotif.message,
+      linkUrl: newNotif.linkUrl
+    });
+  };
+
+  const markNotificationRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
+
 
   useEffect(() => {
     const fetchGlobalData = async () => {
@@ -123,23 +173,34 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const updateOrganization = async (id: string, updates: Partial<Organization>) => {
     const docRef = doc(db, 'organizations', id);
-    await updateDoc(docRef, updates);
+    const cleaned = sanitizeForFirestore(updates);
+    await updateDoc(docRef, cleaned);
+    setOrganizations(prev => prev.map(o => o.id === id ? { ...o, ...cleaned } : o));
+  };
+
+  const deleteOrganization = async (id: string) => {
+    const docRef = doc(db, 'organizations', id);
+    await updateDoc(docRef, { isDeleted: true });
+    setOrganizations(prev => prev.map(o => o.id === id ? { ...o, isDeleted: true } : o));
   };
 
   const addOrganization = async (org: Organization) => {
-    await setDoc(doc(db, 'organizations', org.id), org);
-    setOrganizations(prev => [...prev, org]);
+    const cleaned = sanitizeForFirestore(org);
+    await setDoc(doc(db, 'organizations', org.id), cleaned);
+    setOrganizations(prev => [...prev.filter(o => o.id !== org.id), cleaned]);
   };
   
   const addCourse = async (course: Course) => {
-    await setDoc(doc(db, 'courses', course.id), course);
-    setCourses(prev => [...prev, course]);
+    const cleaned = sanitizeForFirestore(course);
+    await setDoc(doc(db, 'courses', course.id), cleaned);
+    setCourses(prev => [...prev.filter(c => c.id !== course.id), cleaned]);
   };
 
   const updateCourse = async (courseId: string, updates: Partial<Course>) => {
     const courseRef = doc(db, 'courses', courseId);
-    await updateDoc(courseRef, updates);
-    setCourses(prev => prev.map(c => c.id === courseId ? { ...c, ...updates } : c));
+    const cleaned = sanitizeForFirestore(updates);
+    await updateDoc(courseRef, cleaned);
+    setCourses(prev => prev.map(c => c.id === courseId ? { ...c, ...cleaned } : c));
   };
 
   const addEnrollmentRequest = async (req: EnrollmentRequest) => {
@@ -147,9 +208,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setEnrollmentRequests(prev => [...prev, req]);
   };
 
-  const updateEnrollmentRequest = async (id: string, status: 'approved' | 'rejected') => {
-    await updateDoc(doc(db, 'enrollmentRequests', id), { status });
-    setEnrollmentRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+  const updateEnrollmentRequest = async (id: string, status?: 'approved' | 'rejected', paymentStatus?: 'unpaid' | 'paid') => {
+    const updates: Record<string, unknown> = {};
+    if (status) updates.status = status;
+    if (paymentStatus) updates.paymentStatus = paymentStatus;
+
+    await updateDoc(doc(db, 'enrollmentRequests', id), updates);
+    setEnrollmentRequests(prev => prev.map(r => r.id === id ? { ...r, ...updates as Partial<EnrollmentRequest> } : r));
+    const req = enrollmentRequests.find(r => r.id === id);
+    if (req && status) {
+      addNotification({
+        userId: req.userId,
+        title: `Enrollment Application ${status.toUpperCase()}`,
+        message: status === 'approved'
+          ? `Your application for ${req.courseTitle || 'the course'} has been accepted!`
+          : `Your application for ${req.courseTitle || 'the course'} has been declined.`,
+        type: 'enrollment',
+        linkUrl: `/course/${req.courseId}`
+      });
+    }
   };
 
   const addOrgJoinRequest = async (req: OrgJoinRequest) => {
@@ -160,7 +237,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const updateOrgJoinRequest = async (id: string, status: 'approved' | 'rejected') => {
     await updateDoc(doc(db, 'orgJoinRequests', id), { status });
     setOrgJoinRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    const req = orgJoinRequests.find(r => r.id === id);
+    if (req) {
+      addNotification({
+        userId: req.userId,
+        title: `Member Join Request ${status.toUpperCase()}`,
+        message: `Your request to join ${req.orgName} was ${status}.`,
+        type: 'info',
+        linkUrl: `/dashboard`
+      });
+    }
   };
+
 
   const addOrgMember = async (member: OrgMember) => {
     await setDoc(doc(db, 'orgMembers', member.id), member);
@@ -225,6 +313,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const updateScheduleEvent = async (id: string, updates: Partial<ScheduleEvent>) => {
     await updateDoc(doc(db, 'scheduleEvents', id), updates);
     setScheduleEvents(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+    if (updates.isActive) {
+      const evt = scheduleEvents.find(e => e.id === id);
+      if (evt) {
+        addNotification({
+          title: `📹 Live Class Started: ${evt.title}`,
+          message: `The live stream for this class has officially started. Click to join now!`,
+          type: 'live_class',
+          linkUrl: `/course/${evt.courseId}`
+        });
+      }
+    }
+  };
+
+  const deleteScheduleEvent = async (id: string) => {
+    await deleteDoc(doc(db, 'scheduleEvents', id));
+    setScheduleEvents(prev => prev.filter(e => e.id !== id));
   };
 
   const sendMessage = async (msg: ChatMessage) => {
@@ -233,12 +337,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      organizations, courses, enrollmentRequests, orgJoinRequests, orgMembers, userProgress, materials, attendanceRecords, assessments, submissions, scheduleEvents,
-      addOrganization, updateOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent
+      organizations, courses, enrollmentRequests, orgJoinRequests, orgMembers, userProgress, materials, attendanceRecords, assessments, submissions, scheduleEvents, notifications,
+      addOrganization, updateOrganization, deleteOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent, deleteScheduleEvent, addNotification, markNotificationRead, markAllNotificationsRead, clearNotifications
     }}>
       {children}
     </AppContext.Provider>
   );
+
 };
 
 // eslint-disable-next-line react-refresh/only-export-components

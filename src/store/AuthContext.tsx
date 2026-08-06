@@ -26,8 +26,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const updateCurrentUser = async (updates: Partial<User>) => {
     if (!currentUser) return;
     const docRef = doc(db, 'users', currentUser.id);
-    await updateDoc(docRef, updates);
-    setCurrentUser({ ...currentUser, ...updates });
+    const cleaned: Record<string, unknown> = {};
+    for (const key in updates) {
+      const val = (updates as Record<string, unknown>)[key];
+      if (val !== undefined) {
+        cleaned[key] = val;
+      }
+    }
+    await updateDoc(docRef, cleaned);
+    setCurrentUser({ ...currentUser, ...cleaned });
   };
 
   useEffect(() => {
