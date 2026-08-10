@@ -25,7 +25,7 @@ const Home = () => {
         </h1>
 
         <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed mb-8 max-w-2xl mx-auto">
-          Backpack connects educational organizations with students across Africa. 
+          Backpack connects educational organizations with students across Africa.
           Upload courses, track student progress, and accept payments in multiple regional currencies.
         </p>
 
@@ -160,6 +160,151 @@ const Home = () => {
           </div>
         </div>
       )}
+      <footer className="mt-20 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
+            {/* Brand */}
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                Backpack
+              </h3>
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Connecting students, educators, and institutions across Africa
+                through accessible, borderless digital education.
+              </p>
+            </div>
+
+            {/* Platform */}
+            <div>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-4">
+                Platform
+              </h4>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link
+                    to="/explore"
+                    className="text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                  >
+                    Explore Courses
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/signup"
+                    className="text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                  >
+                    Create Account
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/login"
+                    className="text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                  >
+                    Sign In
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/onboard"
+                    className="text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                  >
+                    Register Institution
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Resources */}
+            <div>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-4">
+                Resources
+              </h4>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link
+                    to="/about"
+                    className="text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                  >
+                    About
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/contact"
+                    className="text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                  >
+                    Contact
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/privacy"
+                    className="text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                  >
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/terms"
+                    className="text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                  >
+                    Terms of Service
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-4">
+                Contact
+              </h4>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Email
+              </p>
+              <a
+                href="mailto:support@backpack.africa"
+                className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline"
+              >
+                support@backpack.africa
+              </a>
+
+              <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+                Empowering education across Africa.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              © {new Date().getFullYear()} Backpack. All rights reserved.
+            </p>
+
+            <div className="flex items-center gap-6 text-sm">
+              <Link
+                to="/privacy"
+                className="text-slate-500 dark:text-slate-400 hover:text-indigo-600"
+              >
+                Privacy
+              </Link>
+              <Link
+                to="/terms"
+                className="text-slate-500 dark:text-slate-400 hover:text-indigo-600"
+              >
+                Terms
+              </Link>
+              <Link
+                to="/contact"
+                className="text-slate-500 dark:text-slate-400 hover:text-indigo-600"
+              >
+                Contact
+              </Link>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
