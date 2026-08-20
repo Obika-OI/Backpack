@@ -18,9 +18,16 @@ import { AuthProvider, useAuth } from "../../store/AuthContext";
 import { ThemeProvider } from "../../store/ThemeContext";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { currentUser, loading } = useAuth();
-  if (loading) return <div className="p-8 text-center dark:text-slate-400 text-slate-600">Loading...</div>;
-  if (!currentUser) return <Navigate to="/login" />;
+  const { currentUser, firebaseUser, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 space-y-3">
+        <div className="w-8 h-8 border-3 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Loading your workspace...</p>
+      </div>
+    );
+  }
+  if (!currentUser && !firebaseUser) return <Navigate to="/login" replace />;
   return <>{children}</>;
 };
 

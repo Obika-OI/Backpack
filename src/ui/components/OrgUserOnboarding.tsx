@@ -37,12 +37,21 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     const fetchRegisteredUsers = async () => {
       setLoadingRegisteredUsers(true);
       try {
-        const snap = await getDocs(collection(db, 'users'));
+        const snap = await getDocs(collection(db, 'backpack'));
         const usersList: AppUser[] = [];
         snap.forEach(doc => {
-          const u = doc.data() as AppUser;
-          if (u.id !== currentUser?.id) {
-            usersList.push({ ...u, id: doc.id });
+          const data = doc.data();
+          const userObj = Array.isArray(data.user) ? data.user[0] : data.user;
+          const personalInfo = userObj?.personalInformation;
+          
+          if (personalInfo && doc.id !== currentUser?.id) {
+            usersList.push({
+              id: doc.id,
+              name: personalInfo.fullname || '',
+              email: personalInfo.email || '',
+              role: personalInfo.role as Role,
+              createdAt: personalInfo.createdAt || ''
+            });
           }
         });
         setRegisteredUsers(usersList);

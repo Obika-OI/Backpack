@@ -1,8 +1,8 @@
 import React from 'react';
-import { Course, UserProgress, EnrollmentRequest } from '../../types';
+import { Course, UserProgress, EnrollmentRequest, OrgMember } from '../../types';
 import { TrendingUp, Users, DollarSign, BookOpen } from 'lucide-react';
 
-export const AnalyticsOverview = ({ courses, progressData, enrollmentRequests = [] }: { courses: Course[], progressData: UserProgress[], enrollmentRequests?: EnrollmentRequest[] }) => {
+export const AnalyticsOverview = ({ courses, progressData, enrollmentRequests = [], orgMembers = [] }: { courses: Course[], progressData: UserProgress[], enrollmentRequests?: EnrollmentRequest[], orgMembers?: OrgMember[] }) => {
     
     const orgCourseIds = courses.map(c => c.id);
     const approvedEnrollments = enrollmentRequests.filter(req => req.status === 'approved' && orgCourseIds.includes(req.courseId));
@@ -19,12 +19,16 @@ export const AnalyticsOverview = ({ courses, progressData, enrollmentRequests = 
         return acc + (price || 0);
     }, 0);
 
-    const activeStudents = new Set(approvedEnrollments.map(r => r.userId)).size;
+    const activeStudentIds = Array.from(new Set(approvedEnrollments.map(r => r.userId))).filter(userId => {
+        const member = orgMembers.find(m => m.id === userId);
+        return !member || member.role !== 'instructor';
+    });
+
+    const activeStudents = activeStudentIds.length;
 
     const totalModulesCount = courses.reduce((acc, c) => acc + (c.modules?.length || 0), 0);
 
     // Real Avg. Retention: % of approved enrolled students who have active progress
-    const activeStudentIds = Array.from(new Set(approvedEnrollments.map(r => r.userId)));
     const retainedStudentsCount = activeStudentIds.filter(userId => {
         return progressData.some(p => p.userId === userId && orgCourseIds.includes(p.courseId) && p.completedModuleIds.length > 0);
     }).length;

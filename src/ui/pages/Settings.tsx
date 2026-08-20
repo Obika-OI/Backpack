@@ -25,9 +25,26 @@ import { PaystackSubaccountOnboarding } from '../components/PaystackSubaccountOn
 
 export const Settings = () => {
     const { currentUser, updateCurrentUser } = useAuth();
-    const { addNotification } = useAppContext();
+    const { addNotification, organizations, updateOrganization } = useAppContext();
+    const existingOrg = organizations.find(o => o.ownerId === currentUser?.id || o.id === currentUser?.id);
     const [loading, setLoading] = useState(false);
     
+    // Organization state
+    const [orgName, setOrgName] = useState(() => existingOrg?.name || currentUser?.name || '');
+    const [orgType, setOrgType] = useState(() => ((existingOrg?.orgType || currentUser?.orgType || 'basic') as 'basic' | 'higher' | 'vocational'));
+    const [orgDesc, setOrgDesc] = useState(() => existingOrg?.description || currentUser?.description || '');
+    const [orgLocation, setOrgLocation] = useState(() => existingOrg?.location || currentUser?.location || '');
+    const [orgCurrency, setOrgCurrency] = useState(() => existingOrg?.baseCurrency || currentUser?.baseCurrency || 'NGN');
+    const [orgAddress, setOrgAddress] = useState(() => existingOrg?.address || currentUser?.address || '');
+    const [orgRegId, setOrgRegId] = useState(() => existingOrg?.registrationId || currentUser?.registrationId || '');
+    const [orgKycDoc, setOrgKycDoc] = useState(() => existingOrg?.kycDocumentUrl || currentUser?.kycDocumentUrl || '');
+    const [isRegistered, setIsRegistered] = useState(() => !!(existingOrg?.registrationId || currentUser?.registrationId || existingOrg?.kycDocumentUrl || currentUser?.kycDocumentUrl));
+    const [isAccredited, setIsAccredited] = useState(() => existingOrg?.isAccredited ?? currentUser?.isAccredited ?? false);
+    const [accreditingBody, setAccreditingBody] = useState(() => existingOrg?.accreditingBody || currentUser?.accreditingBody || '');
+    const [accreditationStatus, setAccreditationStatus] = useState(() => existingOrg?.accreditationStatus || currentUser?.accreditationStatus || 'accredited');
+    const [accreditationDocUrl, setAccreditationDocUrl] = useState(() => existingOrg?.accreditationDocUrl || currentUser?.accreditationDocUrl || '');
+    const [orgSaveSuccess, setOrgSaveSuccess] = useState(false);
+
     // Profile info state initialized from currentUser
     const [name, setName] = useState(() => currentUser?.name || '');
     const [headline, setHeadline] = useState(() => currentUser?.headline || '');
@@ -49,43 +66,304 @@ export const Settings = () => {
 
     if (!currentUser) return null;
 
-    // IF USER IS AN ORGANIZATION: Completely remove personal settings
+    const handleOrgSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const orgPayload = {
+                name: orgName.trim(),
+                description: orgDesc.trim(),
+                baseCurrency: orgCurrency,
+                location: orgLocation.trim(),
+                orgType: orgType,
+                address: orgAddress.trim(),
+                registrationId: orgRegId.trim(),
+                kycDocumentUrl: orgKycDoc,
+                isAccredited: isAccredited,
+                accreditingBody: accreditingBody.trim(),
+                accreditationStatus: accreditationStatus as 'accredited' | 'pending' | 'unaccredited',
+                accreditationDocUrl: accreditationDocUrl,
+                kycVerified: true
+            };
+
+            if (existingOrg) {
+                await updateOrganization(existingOrg.id, orgPayload);
+            }
+            await updateCurrentUser({
+                role: 'organization',
+                ...orgPayload
+            });
+
+            setOrgSaveSuccess(true);
+            setTimeout(() => setOrgSaveSuccess(false), 4000);
+        } catch (err) {
+            console.error("Failed to update organization settings:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // IF USER IS AN ORGANIZATION: Render Organization Settings Panel
     if (currentUser.role === 'organization') {
         return (
-            <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-12">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Settings</h1>
-                    <p className="text-slate-500 dark:text-slate-400 mt-2">Manage your institution and operational configurations.</p>
+            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-16">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center space-x-2 mb-1">
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                                Institutional Account
+                            </span>
+                        </div>
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Organization Settings</h1>
+                        <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Manage your institution profile, KYC documents, and payout subaccounts.</p>
+                    </div>
+
+                    <Link
+                        to="/onboard"
+                        className="inline-flex items-center px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition shadow-sm self-start sm:self-auto space-x-1.5"
+                    >
+                        <Building className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>Organization Setup</span>
+                        <ExternalLink className="w-3.5 h-3.5 ml-1 text-slate-400" />
+                    </Link>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 space-y-6 shadow-sm">
-                    <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-indigo-50 dark:bg-indigo-900/40 rounded-2xl text-indigo-600 dark:text-indigo-400">
-                            <Building className="w-8 h-8" />
+                {orgSaveSuccess && (
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-xl flex items-center justify-between text-sm animate-in fade-in">
+                        <div className="flex items-center space-x-2">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                            <span className="font-semibold">Institutional profile and KYC documents updated successfully!</span>
                         </div>
+                    </div>
+                )}
+
+                <form onSubmit={handleOrgSave} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 space-y-8 shadow-sm">
+                    {/* Basic Info */}
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center">
+                            <Building className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" />
+                            Institution Profile
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                                    Institution Name <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={orgName}
+                                    onChange={(e) => setOrgName(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                                    Institution Category <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={orgType}
+                                    onChange={(e) => setOrgType(e.target.value as 'basic' | 'higher' | 'vocational')}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value="basic">Basic Education (Primary & Secondary)</option>
+                                    <option value="higher">Higher Education (Colleges & Universities)</option>
+                                    <option value="vocational">Vocational Education (NGOs & Institutes)</option>
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                                    Mission & Description <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    value={orgDesc}
+                                    onChange={(e) => setOrgDesc(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500 h-24"
+                                    placeholder="Describe your academic programs and goals..."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                                    Headquarters Location / Country <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={orgLocation}
+                                    onChange={(e) => setOrgLocation(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                                    Settlement Currency <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={orgCurrency}
+                                    onChange={(e) => setOrgCurrency(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    <option value="NGN">NGN - Nigerian Naira (₦)</option>
+                                    <option value="KES">KES - Kenyan Shilling (KSh)</option>
+                                    <option value="ZAR">ZAR - South African Rand (R)</option>
+                                    <option value="GHS">GHS - Ghanaian Cedi (GH₵)</option>
+                                    <option value="USD">USD - US Dollar ($)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Legal & KYC */}
+                    <div className="pt-6 border-t border-slate-200 dark:border-slate-700 space-y-6">
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
+                            <ShieldCheck className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" />
+                            Legal Registration & Educational KYC
+                        </h2>
+
                         <div>
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Organization Account Detected</h2>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Personal settings and student credentials are hidden for organization profiles.</p>
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                                Official Physical Address <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                value={orgAddress}
+                                onChange={(e) => setOrgAddress(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                placeholder="e.g. 14 Victoria Island, Lagos, Nigeria"
+                            />
+                        </div>
+
+                        {/* Registration Section */}
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 space-y-4">
+                            <label className="flex items-center space-x-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={isRegistered}
+                                    onChange={(e) => setIsRegistered(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                    Registered Corporate / Educational Entity
+                                </span>
+                            </label>
+
+                            {isRegistered && (
+                                <div className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-700 animate-in fade-in">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Registration / Tax ID (RC Number / EIN / BN)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={orgRegId}
+                                            onChange={(e) => setOrgRegId(e.target.value)}
+                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="e.g. RC 1892834"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                            Upload Certificate of Incorporation / Registration Proof (PDF or Image)
+                                        </label>
+                                        <FileUpload
+                                            label="Upload Registration Document"
+                                            onUpload={(url) => setOrgKycDoc(url)}
+                                        />
+                                        {orgKycDoc && (
+                                            <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
+                                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Certificate attached
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Accreditation Section */}
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 space-y-4">
+                            <label className="flex items-center space-x-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={isAccredited}
+                                    onChange={(e) => setIsAccredited(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                    Institution is Accredited by Official Educational Bodies
+                                </span>
+                            </label>
+
+                            {isAccredited && (
+                                <div className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-700 animate-in fade-in">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                                Accrediting Body Name
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={accreditingBody}
+                                                onChange={(e) => setAccreditingBody(e.target.value)}
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                                                placeholder="e.g. Ministry of Education, TVET, NUC"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                                Accreditation Status
+                                            </label>
+                                            <select
+                                                value={accreditationStatus}
+                                                onChange={(e) => setAccreditationStatus(e.target.value as 'accredited' | 'pending' | 'unaccredited')}
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                            >
+                                                <option value="accredited">Fully Accredited</option>
+                                                <option value="pending">Accreditation Pending Review</option>
+                                                <option value="unaccredited">Provisional / Unaccredited</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                            Upload Accreditation Certificate / License (PDF or Image)
+                                        </label>
+                                        <FileUpload
+                                            label="Upload Accreditation Document"
+                                            onUpload={(url) => setAccreditationDocUrl(url)}
+                                        />
+                                        {accreditationDocUrl && (
+                                            <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
+                                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Accreditation proof attached
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm space-y-2">
-                        <p className="font-semibold text-slate-900 dark:text-white">Where are my Organization Settings?</p>
-                        <p>
-                            All institutional settings—including institution name, logo, location, base currency, registration ID, and institutional verification documents—are managed exclusively on the <strong className="text-indigo-600 dark:text-indigo-400">Organization Settings</strong> page.
-                        </p>
-                    </div>
-
-                    <div className="pt-2">
-                        <Link
-                            to="/onboard"
-                            className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-bold transition shadow-sm space-x-2"
+                    <div className="pt-4 flex justify-end">
+                        <button
+                            type="submit"
+                            disabled={loading || !orgName.trim()}
+                            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold flex items-center transition shadow-md text-sm cursor-pointer"
                         >
-                            <Building className="w-4 h-4" />
-                            <span>Go to Organization Settings</span>
-                            <ExternalLink className="w-4 h-4 ml-1" />
-                        </Link>
+                            {loading ? 'Saving...' : 'Save Organization Settings'}
+                            <Save className="w-4 h-4 ml-2" />
+                        </button>
                     </div>
+                </form>
+
+                {/* Paystack Split Payouts Section */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 shadow-sm">
+                    <PaystackSubaccountOnboarding />
                 </div>
             </div>
         );

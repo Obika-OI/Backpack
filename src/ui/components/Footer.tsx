@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom'; // Replace with 'next/link' if using Next.js
-import { Sparkles, ArrowRight, Globe, Github, Twitter, Linkedin, Heart } from 'lucide-react';
+import { ArrowRight, Globe, Github, Twitter, Linkedin, Heart } from 'lucide-react';
 
 const Footer: React.FC = () => {
     return (
@@ -13,7 +13,7 @@ const Footer: React.FC = () => {
                     {/* Brand Column */}
                     <div className="lg:col-span-2 space-y-4">
                         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-sm">
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                            <img src="/backpack-logo.png" alt="Backpack Logo" className="w-4 h-4 object-contain" referrerPolicy="no-referrer" />
                             <span>Backpack LMS</span>
                         </div>
 

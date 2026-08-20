@@ -3,32 +3,37 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Publicly accessible collections for reading course catalog, organizations, and members
-    match /organizations/{document} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    
-    match /courses/{document} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    
-    match /orgMembers/{document} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    match /users/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    // Helper function to check if the user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Default fallback rule for all application collections (materials, schedule, progress, requests, etc.)
+    // Backpack Collection:
+    // ALL user and organization identity data (accreditationDocUrl, accreditationStatus,
+    // accreditingBody, address, baseCurrency, description, id, isAccredited, kycDocumentUrl,
+    // location, name/fullname, orgType, ownerId, registrationId, courses, progress, enrollments)
+    // reside strictly inside backpack/{userId} -> user -> personalInformation / courses / etc.
+    // No separate organization or user-type collections are created.
+    match /backpack/{userId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isOwner(userId);
+    }
+
+    // Real-time course chat messages
+    match /messages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Fallback rule for any other collection documents
     match /{document=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAuthenticated();
     }
   }
 }
-

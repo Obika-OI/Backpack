@@ -608,7 +608,11 @@ export const LunchGames = () => {
                       : 'bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:scale-105'
                   }`}
                 >
-                  {card.isFlipped || card.isMatched ? card.icon : '🎒'}
+                  {card.isFlipped || card.isMatched ? (
+                    card.icon
+                  ) : (
+                    <img src="/backpack-logo.png" alt="Card Back" className="w-10 h-10 object-contain pointer-events-none drop-shadow-sm" referrerPolicy="no-referrer" />
+                  )}
                 </button>
               ))}
             </div>

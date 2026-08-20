@@ -13,7 +13,8 @@ import {
     PlusCircle,
     CheckCircle2,
     Calendar,
-    Mail
+    Mail,
+    Eye
 } from 'lucide-react';
 import { getNotificationPermission } from '../../lib/pushNotifications';
 
@@ -72,7 +73,16 @@ export const Profile = () => {
                         </div>
                     </div>
 
-                    <div className="w-full sm:w-auto flex items-center gap-3">
+                    <div className="w-full sm:w-auto flex flex-wrap items-center gap-3">
+                        {isOrg && (
+                            <Link
+                                to={`/org/${currentUser.id}`}
+                                className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow-sm"
+                            >
+                                <Eye className="w-4 h-4" />
+                                <span>View Public Webpage Profile</span>
+                            </Link>
+                        )}
                         {isOrg ? (
                             <Link
                                 to="/onboard"
@@ -118,14 +128,22 @@ export const Profile = () => {
                         </div>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                        To manage your institutional profile, location, base currency, registration ID, and institutional KYC document, access Organization Settings.
+                        To manage your institutional profile, location, base currency, registration ID, and institutional KYC document, access Organization Settings or preview your live public webpage profile.
                     </p>
-                    <Link
-                        to="/onboard"
-                        className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow-sm"
-                    >
-                        Go to Organization Settings <ExternalLink className="w-3.5 h-3.5 ml-2" />
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Link
+                            to={`/org/${currentUser.id}`}
+                            className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                        >
+                            <Eye className="w-3.5 h-3.5 mr-2" /> View Public Webpage Profile
+                        </Link>
+                        <Link
+                            to="/onboard"
+                            className="inline-flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold transition shadow-sm"
+                        >
+                            Go to Organization Settings <ExternalLink className="w-3.5 h-3.5 ml-2" />
+                        </Link>
+                    </div>
                 </div>
             )}
 

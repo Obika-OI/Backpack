@@ -1,7 +1,21 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { Assessment, Submission, ScheduleEvent, Organization, Course, EnrollmentRequest, UserProgress, AttendanceRecord, Material, ChatMessage, OrgJoinRequest, OrgMember, AppNotification } from '../types';
+import { collection, getDocs, updateDoc, doc, getDoc, addDoc } from 'firebase/firestore';
+import { 
+  Assessment, 
+  Submission, 
+  ScheduleEvent, 
+  Organization, 
+  Course, 
+  EnrollmentRequest, 
+  UserProgress, 
+  AttendanceRecord, 
+  Material, 
+  ChatMessage, 
+  OrgJoinRequest, 
+  OrgMember, 
+  AppNotification 
+} from '../types';
 import { useAuth } from './AuthContext';
 import { sendPushNotification } from '../lib/pushNotifications';
 
@@ -60,6 +74,15 @@ const sanitizeForFirestore = <T extends object>(obj: T): T => {
   return cleaned as T;
 };
 
+// Helper function to extract user data whether stored as an object or legacy array
+const getUserData = (data: Record<string, unknown> | undefined): Record<string, unknown> => {
+  if (!data) return {};
+  if (Array.isArray(data.user)) {
+    return (data.user[0] as Record<string, unknown>) || {};
+  }
+  return (data.user as Record<string, unknown>) || {};
+};
+
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { currentUser } = useAuth();
   
@@ -75,6 +98,60 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  // Helper to update personalInformation within the user object of a backpack document
+  const updateBackpackPersonalInfo = async (userId: string, updates: Record<string, unknown>) => {
+    if (!userId) return;
+    const docRef = doc(db, 'backpack', userId);
+    try {
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const userObj = getUserData(data);
+        const personalInfo = (userObj.personalInformation as Record<string, unknown>) || {};
+        
+        const updatedPersonalInfo = {
+          ...personalInfo,
+          ...sanitizeForFirestore(updates)
+        };
+
+        const updatedUser = {
+          ...userObj,
+          personalInformation: updatedPersonalInfo
+        };
+
+        await updateDoc(docRef, { user: updatedUser });
+      }
+    } catch (err) {
+      console.error(`updateBackpackPersonalInfo for user ${userId} failed:`, err);
+    }
+  };
+
+  // Helper to update arrays within the user object of a backpack document
+  const updateBackpackUserField = async <T extends { id?: string }>(
+    userId: string,
+    field: string,
+    updateFn: (currentList: T[]) => T[]
+  ) => {
+    if (!userId) return;
+    const docRef = doc(db, 'backpack', userId);
+    try {
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const userObj = getUserData(data);
+        const currentList: T[] = Array.isArray(userObj[field]) ? userObj[field] : [];
+        const updatedList = updateFn(currentList);
+        const updatedUser = {
+          ...userObj,
+          [field]: updatedList
+        };
+        await updateDoc(docRef, { user: updatedUser });
+      }
+    } catch (err) {
+      console.error(`Error updating ${field} in backpack/${userId}:`, err);
+    }
+  };
 
   const addNotification = (notifData: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
     const newNotif: AppNotification = {
@@ -105,140 +182,261 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setNotifications([]);
   };
 
-
+  // Fetch all global data and user-specific data from backpack documents
   useEffect(() => {
-    const fetchGlobalData = async () => {
+    const loadAllBackpackData = async () => {
       try {
-        const orgSnap = await getDocs(collection(db, 'organizations'));
-        setOrganizations(orgSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Organization)));
+        const backpackSnap = await getDocs(collection(db, 'backpack'));
+        
+        const allOrganizations: Organization[] = [];
+        const allCourses: Course[] = [];
+        const allEnrollments: EnrollmentRequest[] = [];
+        const allOrgJoinRequests: OrgJoinRequest[] = [];
+        const allMembers: OrgMember[] = [];
+        const allProgress: UserProgress[] = [];
+        const allMaterials: Material[] = [];
+        const allAttendance: AttendanceRecord[] = [];
+        const allAssessments: Assessment[] = [];
+        const allSubmissions: Submission[] = [];
+        const allScheduleEvents: ScheduleEvent[] = [];
 
-        const courseSnap = await getDocs(collection(db, 'courses'));
-        setCourses(courseSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Course)));
+        backpackSnap.docs.forEach(docSnap => {
+          const data = docSnap.data();
+          const userObj = getUserData(data);
+          const personalInfo = (userObj.personalInformation as Record<string, unknown>) || {};
 
-        const memSnap = await getDocs(collection(db, 'orgMembers'));
-        setOrgMembers(memSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as OrgMember)));
+          // Extract organization from user.personalInformation map
+          if (
+            personalInfo.role === 'organization' ||
+            personalInfo.orgType ||
+            personalInfo.registrationId ||
+            personalInfo.accreditationStatus ||
+            personalInfo.isAccredited
+          ) {
+            allOrganizations.push({
+              id: (personalInfo.id as string) || docSnap.id,
+              name: (personalInfo.fullname as string) || (personalInfo.name as string) || 'Unnamed Organization',
+              description: (personalInfo.description as string) || '',
+              logoUrl: personalInfo.logoUrl as string | undefined,
+              ownerId: (personalInfo.ownerId as string) || docSnap.id,
+              baseCurrency: (personalInfo.baseCurrency as string) || 'USD',
+              location: personalInfo.location as string | undefined,
+              orgType: (personalInfo.orgType as 'basic' | 'higher' | 'vocational') || 'basic',
+              kycVerified: (personalInfo.kycVerified as boolean) ?? false,
+              kycDocumentUrl: personalInfo.kycDocumentUrl as string | undefined,
+              address: personalInfo.address as string | undefined,
+              registrationId: personalInfo.registrationId as string | undefined,
+              isAccredited: (personalInfo.isAccredited as boolean) ?? false,
+              accreditingBody: personalInfo.accreditingBody as string | undefined,
+              accreditationStatus: (personalInfo.accreditationStatus as 'accredited' | 'pending' | 'unaccredited') || (personalInfo.isAccredited ? 'accredited' : 'unaccredited'),
+              accreditationDocUrl: personalInfo.accreditationDocUrl as string | undefined,
+              motto: personalInfo.motto as string | undefined,
+              phone: personalInfo.phone as string | undefined,
+              website: personalInfo.website as string | undefined,
+              themeColor: personalInfo.themeColor as string | undefined,
+              academicHighlights: personalInfo.academicHighlights as string[] | undefined,
+              isDeleted: (personalInfo.isDeleted as boolean) ?? false,
+              paystackSubaccount: personalInfo.paystackSubaccount as Organization['paystackSubaccount']
+            });
+          }
+
+          if (Array.isArray(userObj.courses)) allCourses.push(...userObj.courses);
+          if (Array.isArray(userObj.enrollmentRequests)) allEnrollments.push(...userObj.enrollmentRequests);
+          if (Array.isArray(userObj.orgJoinRequests)) allOrgJoinRequests.push(...userObj.orgJoinRequests);
+          if (Array.isArray(userObj.orgMembers)) allMembers.push(...userObj.orgMembers);
+          if (Array.isArray(userObj.userProgress)) allProgress.push(...userObj.userProgress);
+          if (Array.isArray(userObj.materials)) allMaterials.push(...userObj.materials);
+          if (Array.isArray(userObj.attendance)) allAttendance.push(...userObj.attendance);
+          if (Array.isArray(userObj.assessments)) allAssessments.push(...userObj.assessments);
+          if (Array.isArray(userObj.submissions)) allSubmissions.push(...userObj.submissions);
+          if (Array.isArray(userObj.scheduleEvents)) allScheduleEvents.push(...userObj.scheduleEvents);
+        });
+
+        // Deduplicate arrays by id
+        const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
+          const map = new Map<string, T>();
+          arr.forEach(item => {
+            if (item.id) map.set(item.id, item);
+          });
+          return Array.from(map.values());
+        };
+
+        setOrganizations(dedupeById(allOrganizations));
+        setCourses(dedupeById(allCourses));
+        setEnrollmentRequests(dedupeById(allEnrollments));
+        setOrgJoinRequests(dedupeById(allOrgJoinRequests));
+        setUserProgress(dedupeById(allProgress));
+        setMaterials(dedupeById(allMaterials));
+        setAttendanceRecords(allAttendance);
+        setAssessments(dedupeById(allAssessments));
+        setSubmissions(dedupeById(allSubmissions));
+        setScheduleEvents(dedupeById(allScheduleEvents));
+        setOrgMembers(dedupeById(allMembers));
+
       } catch (err) {
-        console.error(err);
+        console.error("loadAllBackpackData failed:", err);
       }
     };
-    fetchGlobalData();
-  }, []);
 
-  useEffect(() => {
-    if (currentUser) {
-      const fetchUserData = async () => {
-        try {
-          const reqSnap = await getDocs(collection(db, 'enrollmentRequests'));
-          setEnrollmentRequests(reqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as EnrollmentRequest)));
-
-          const orgReqSnap = await getDocs(collection(db, 'orgJoinRequests'));
-          setOrgJoinRequests(orgReqSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as OrgJoinRequest)));
-
-          const progSnap = await getDocs(collection(db, 'userProgress'));
-          setUserProgress(progSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProgress)));
-
-          const matSnap = await getDocs(collection(db, 'materials'));
-          setMaterials(matSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Material)));
-
-          const attSnap = await getDocs(collection(db, 'attendance'));
-          setAttendanceRecords(attSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord)));
-          
-          const asstSnap = await getDocs(collection(db, 'assessments'));
-          setAssessments(asstSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assessment)));
-          
-          const subSnap = await getDocs(collection(db, 'submissions'));
-          setSubmissions(subSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Submission)));
-          
-          const schSnap = await getDocs(collection(db, 'scheduleEvents'));
-          setScheduleEvents(schSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScheduleEvent)));
-        } catch (err) {
-          console.error(err);
-        }
-      };
-      fetchUserData();
-    } else {
-      const clearData = () => {
-        setEnrollmentRequests([]);
-        setOrgJoinRequests([]);
-        setUserProgress([]);
-        setMaterials([]);
-        setAttendanceRecords([]);
-        setAssessments([]);
-        setSubmissions([]);
-        setScheduleEvents([]);
-      };
-      clearData();
-    }
+    loadAllBackpackData();
   }, [currentUser]);
 
+  // Organization Operations (stored inside backpack/{userId} -> user -> personalInformation)
   const updateOrganization = async (id: string, updates: Partial<Organization>) => {
-    const docRef = doc(db, 'organizations', id);
     const cleaned = sanitizeForFirestore(updates);
-    await updateDoc(docRef, cleaned);
-    setOrganizations(prev => prev.map(o => o.id === id ? { ...o, ...cleaned } : o));
+    const existingOrg = organizations.find(o => o.id === id || o.ownerId === id);
+    const targetUid = existingOrg?.ownerId || existingOrg?.id || (id.startsWith('org_') ? id.replace('org_', '') : id) || currentUser?.id || '';
+    
+    if (targetUid) {
+      const personalUpdates: Record<string, unknown> = { ...cleaned };
+      if (updates.name) personalUpdates.fullname = updates.name;
+      await updateBackpackPersonalInfo(targetUid, personalUpdates);
+    }
+    
+    setOrganizations(prev => prev.map(o => (o.id === id || o.ownerId === id || o.id === targetUid) ? { ...o, ...cleaned } : o));
   };
 
   const deleteOrganization = async (id: string) => {
-    const docRef = doc(db, 'organizations', id);
-    await updateDoc(docRef, { isDeleted: true });
-    setOrganizations(prev => prev.map(o => o.id === id ? { ...o, isDeleted: true } : o));
+    const existingOrg = organizations.find(o => o.id === id || o.ownerId === id);
+    const targetUid = existingOrg?.ownerId || existingOrg?.id || (id.startsWith('org_') ? id.replace('org_', '') : id) || currentUser?.id || '';
+    
+    if (targetUid) {
+      await updateBackpackPersonalInfo(targetUid, { isDeleted: true });
+    }
+    
+    setOrganizations(prev => prev.map(o => (o.id === id || o.ownerId === id || o.id === targetUid) ? { ...o, isDeleted: true } : o));
   };
 
   const addOrganization = async (org: Organization) => {
     const cleaned = sanitizeForFirestore(org);
-    await setDoc(doc(db, 'organizations', org.id), cleaned);
-    setOrganizations(prev => [...prev.filter(o => o.id !== org.id), cleaned]);
+    const targetUid = org.ownerId || org.id || currentUser?.id || '';
+    if (targetUid) {
+      await updateBackpackPersonalInfo(targetUid, {
+        id: org.id || targetUid,
+        name: org.name,
+        fullname: org.name,
+        description: org.description,
+        logoUrl: org.logoUrl,
+        ownerId: targetUid,
+        baseCurrency: org.baseCurrency,
+        location: org.location,
+        orgType: org.orgType,
+        kycVerified: org.kycVerified ?? false,
+        kycDocumentUrl: org.kycDocumentUrl,
+        address: org.address,
+        registrationId: org.registrationId,
+        isAccredited: org.isAccredited ?? false,
+        accreditingBody: org.accreditingBody,
+        accreditationStatus: org.accreditationStatus || (org.isAccredited ? 'accredited' : 'unaccredited'),
+        accreditationDocUrl: org.accreditationDocUrl,
+        motto: org.motto,
+        phone: org.phone,
+        website: org.website,
+        themeColor: org.themeColor,
+        academicHighlights: org.academicHighlights,
+        isDeleted: false,
+        role: 'organization',
+        paystackSubaccount: org.paystackSubaccount
+      });
+    }
+    setOrganizations(prev => [...prev.filter(o => o.id !== org.id && o.ownerId !== targetUid), { ...cleaned, id: org.id || targetUid, ownerId: targetUid }]);
   };
   
+  // Course Operations (stored in backpack/{orgId}.user.courses)
   const addCourse = async (course: Course) => {
     const cleaned = sanitizeForFirestore(course);
-    await setDoc(doc(db, 'courses', course.id), cleaned);
+    const targetUid = course.orgId || currentUser?.id || '';
+
+    await updateBackpackUserField<Course>(targetUid, 'courses', (list) => [...list.filter(c => c.id !== course.id), cleaned]);
     setCourses(prev => [...prev.filter(c => c.id !== course.id), cleaned]);
   };
 
   const updateCourse = async (courseId: string, updates: Partial<Course>) => {
-    const courseRef = doc(db, 'courses', courseId);
     const cleaned = sanitizeForFirestore(updates);
-    await updateDoc(courseRef, cleaned);
+    const existingCourse = courses.find(c => c.id === courseId);
+    if (!existingCourse) return;
+    
+    const targetUid = existingCourse.orgId || currentUser?.id || '';
+    await updateBackpackUserField<Course>(targetUid, 'courses', (list) => 
+      list.map(c => c.id === courseId ? { ...c, ...cleaned } : c)
+    );
     setCourses(prev => prev.map(c => c.id === courseId ? { ...c, ...cleaned } : c));
   };
 
+  // Enrollment Request Operations (stored in backpack/{userId}.user.enrollmentRequests & org's backpack)
   const addEnrollmentRequest = async (req: EnrollmentRequest) => {
-    await setDoc(doc(db, 'enrollmentRequests', req.id), req);
-    setEnrollmentRequests(prev => [...prev, req]);
+    const cleaned = sanitizeForFirestore(req);
+    // Store in student's backpack
+    if (req.userId) {
+      await updateBackpackUserField<EnrollmentRequest>(req.userId, 'enrollmentRequests', (list) => [...list.filter(r => r.id !== req.id), cleaned]);
+    }
+    // Also store in org's backpack if distinct
+    if (req.orgId && req.orgId !== req.userId) {
+      await updateBackpackUserField<EnrollmentRequest>(req.orgId, 'enrollmentRequests', (list) => [...list.filter(r => r.id !== req.id), cleaned]);
+    }
+
+    setEnrollmentRequests(prev => [...prev.filter(r => r.id !== req.id), cleaned]);
   };
 
   const updateEnrollmentRequest = async (id: string, status?: 'approved' | 'rejected', paymentStatus?: 'unpaid' | 'paid') => {
-    const updates: Record<string, unknown> = {};
+    const req = enrollmentRequests.find(r => r.id === id);
+    const updates: Partial<EnrollmentRequest> = {};
     if (status) updates.status = status;
     if (paymentStatus) updates.paymentStatus = paymentStatus;
 
-    await updateDoc(doc(db, 'enrollmentRequests', id), updates);
-    setEnrollmentRequests(prev => prev.map(r => r.id === id ? { ...r, ...updates as Partial<EnrollmentRequest> } : r));
-    const req = enrollmentRequests.find(r => r.id === id);
-    if (req && status) {
-      addNotification({
-        userId: req.userId,
-        title: `Enrollment Application ${status.toUpperCase()}`,
-        message: status === 'approved'
-          ? `Your application for ${req.courseTitle || 'the course'} has been accepted!`
-          : `Your application for ${req.courseTitle || 'the course'} has been declined.`,
-        type: 'enrollment',
-        linkUrl: `/course/${req.courseId}`
-      });
+    if (req) {
+      if (req.userId) {
+        await updateBackpackUserField<EnrollmentRequest>(req.userId, 'enrollmentRequests', (list) =>
+          list.map(r => r.id === id ? { ...r, ...updates } : r)
+        );
+      }
+      if (req.orgId && req.orgId !== req.userId) {
+        await updateBackpackUserField<EnrollmentRequest>(req.orgId, 'enrollmentRequests', (list) =>
+          list.map(r => r.id === id ? { ...r, ...updates } : r)
+        );
+      }
+
+      if (status) {
+        addNotification({
+          userId: req.userId,
+          title: `Enrollment Application ${status.toUpperCase()}`,
+          message: status === 'approved'
+            ? `Your application for ${req.courseTitle || 'the course'} has been accepted!`
+            : `Your application for ${req.courseTitle || 'the course'} has been declined.`,
+          type: 'enrollment',
+          linkUrl: `/course/${req.courseId}`
+        });
+      }
     }
+
+    setEnrollmentRequests(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
   };
 
+  // Org Join Requests (stored in backpack/{userId}.user.orgJoinRequests & org's backpack)
   const addOrgJoinRequest = async (req: OrgJoinRequest) => {
-    await setDoc(doc(db, 'orgJoinRequests', req.id), req);
-    setOrgJoinRequests(prev => [...prev, req]);
+    const cleaned = sanitizeForFirestore(req);
+    if (req.userId) {
+      await updateBackpackUserField<OrgJoinRequest>(req.userId, 'orgJoinRequests', (list) => [...list.filter(r => r.id !== req.id), cleaned]);
+    }
+    if (req.orgId && req.orgId !== req.userId) {
+      await updateBackpackUserField<OrgJoinRequest>(req.orgId, 'orgJoinRequests', (list) => [...list.filter(r => r.id !== req.id), cleaned]);
+    }
+    setOrgJoinRequests(prev => [...prev.filter(r => r.id !== req.id), cleaned]);
   };
 
   const updateOrgJoinRequest = async (id: string, status: 'approved' | 'rejected') => {
-    await updateDoc(doc(db, 'orgJoinRequests', id), { status });
-    setOrgJoinRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
     const req = orgJoinRequests.find(r => r.id === id);
     if (req) {
+      if (req.userId) {
+        await updateBackpackUserField<OrgJoinRequest>(req.userId, 'orgJoinRequests', (list) =>
+          list.map(r => r.id === id ? { ...r, status } : r)
+        );
+      }
+      if (req.orgId && req.orgId !== req.userId) {
+        await updateBackpackUserField<OrgJoinRequest>(req.orgId, 'orgJoinRequests', (list) =>
+          list.map(r => r.id === id ? { ...r, status } : r)
+        );
+      }
       addNotification({
         userId: req.userId,
         title: `Member Join Request ${status.toUpperCase()}`,
@@ -247,71 +445,139 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         linkUrl: `/dashboard`
       });
     }
+    setOrgJoinRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
   };
 
-
+  // Org Members (stored in backpack/{orgId}.user.orgMembers and orgMembers collection)
   const addOrgMember = async (member: OrgMember) => {
-    await setDoc(doc(db, 'orgMembers', member.id), member);
-    setOrgMembers(prev => [...prev.filter(m => m.id !== member.id), member]);
+    const cleaned = sanitizeForFirestore(member);
+    if (member.orgId) {
+      await updateBackpackUserField<OrgMember>(member.orgId, 'orgMembers', (list) => [...list.filter(m => m.id !== member.id), cleaned]);
+    }
+    setOrgMembers(prev => [...prev.filter(m => m.id !== member.id), cleaned]);
   };
 
   const updateOrgMember = async (id: string, updates: Partial<OrgMember>) => {
-    await updateDoc(doc(db, 'orgMembers', id), updates);
+    const member = orgMembers.find(m => m.id === id);
+    if (member && member.orgId) {
+      await updateBackpackUserField<OrgMember>(member.orgId, 'orgMembers', (list) =>
+        list.map(m => m.id === id ? { ...m, ...updates } : m)
+      );
+    }
     setOrgMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
   };
 
   const deleteOrgMember = async (id: string) => {
-    try {
-      await updateDoc(doc(db, 'orgMembers', id), { status: 'rejected' });
-    } catch {
-      // ignore
+    const member = orgMembers.find(m => m.id === id);
+    if (member && member.orgId) {
+      await updateBackpackUserField<OrgMember>(member.orgId, 'orgMembers', (list) =>
+        list.filter(m => m.id !== id)
+      );
     }
     setOrgMembers(prev => prev.filter(m => m.id !== id));
   };
 
+  // User Progress (stored in backpack/{userId}.user.userProgress)
   const updateProgress = async (progress: UserProgress) => {
-    const existing = userProgress.find(p => p.userId === progress.userId && p.courseId === progress.courseId);
-    if (existing && existing.id) {
-      await updateDoc(doc(db, 'userProgress', existing.id), { ...progress });
-      setUserProgress(prev => prev.map(p => p.id === existing.id ? { ...p, ...progress } : p));
-    } else {
-      const docRef = await addDoc(collection(db, 'userProgress'), progress);
-      setUserProgress(prev => [...prev, { ...progress, id: docRef.id }]);
+    const progressId = progress.id || `prog_${progress.userId}_${progress.courseId}`;
+    const cleaned = sanitizeForFirestore({ ...progress, id: progressId });
+
+    if (progress.userId) {
+      await updateBackpackUserField<UserProgress>(progress.userId, 'userProgress', (list) => {
+        const existingIdx = list.findIndex(p => p.userId === progress.userId && p.courseId === progress.courseId);
+        if (existingIdx >= 0) {
+          const updated = [...list];
+          updated[existingIdx] = cleaned;
+          return updated;
+        }
+        return [...list, cleaned];
+      });
     }
+
+    setUserProgress(prev => {
+      const idx = prev.findIndex(p => p.userId === progress.userId && p.courseId === progress.courseId);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = cleaned;
+        return updated;
+      }
+      return [...prev, cleaned];
+    });
   };
 
+  // Materials (stored in backpack/{targetId}.user.materials)
   const addMaterial = async (material: Material) => {
-    const docRef = await addDoc(collection(db, 'materials'), material);
-    setMaterials(prev => [...prev, { ...material, id: docRef.id }]);
+    const matId = material.id || `mat_${crypto.randomUUID()}`;
+    const cleaned = sanitizeForFirestore({ ...material, id: matId });
+    const targetUid = currentUser?.id || '';
+
+    if (targetUid) {
+      await updateBackpackUserField<Material>(targetUid, 'materials', (list) => [...list, cleaned]);
+    }
+    setMaterials(prev => [...prev, cleaned]);
   };
 
+  // Attendance Records (stored in backpack/{targetId}.user.attendance)
   const addAttendanceRecord = async (record: AttendanceRecord) => {
-    const docRef = await addDoc(collection(db, 'attendance'), record);
-    setAttendanceRecords(prev => [...prev, { ...record, id: docRef.id }]);
+    const attId = record.id || `att_${Date.now()}_${record.courseId}`;
+    const cleaned = sanitizeForFirestore({ ...record, id: attId });
+    const targetUid = currentUser?.id || '';
+
+    if (targetUid) {
+      await updateBackpackUserField<AttendanceRecord>(targetUid, 'attendance', (list) => [...list, cleaned]);
+    }
+    setAttendanceRecords(prev => [...prev, cleaned]);
   };
 
+  // Assessments (stored in backpack/{targetId}.user.assessments)
   const addAssessment = async (assessment: Assessment) => {
-    await setDoc(doc(db, 'assessments', assessment.id), assessment);
-    setAssessments(prev => [...prev, assessment]);
+    const cleaned = sanitizeForFirestore(assessment);
+    const targetUid = currentUser?.id || '';
+
+    if (targetUid) {
+      await updateBackpackUserField<Assessment>(targetUid, 'assessments', (list) => [...list.filter(a => a.id !== assessment.id), cleaned]);
+    }
+    setAssessments(prev => [...prev.filter(a => a.id !== assessment.id), cleaned]);
   };
 
+  // Submissions (stored in student's backpack & course instructor's backpack)
   const addSubmission = async (submission: Submission) => {
-    await setDoc(doc(db, 'submissions', submission.id), submission);
-    setSubmissions(prev => [...prev, submission]);
+    const cleaned = sanitizeForFirestore(submission);
+    if (submission.userId) {
+      await updateBackpackUserField<Submission>(submission.userId, 'submissions', (list) => [...list.filter(s => s.id !== submission.id), cleaned]);
+    }
+    setSubmissions(prev => [...prev.filter(s => s.id !== submission.id), cleaned]);
   };
 
   const updateSubmissionScore = async (id: string, score: number, feedback: string) => {
-    await updateDoc(doc(db, 'submissions', id), { score, feedback, status: 'graded' });
+    const sub = submissions.find(s => s.id === id);
+    if (sub && sub.userId) {
+      await updateBackpackUserField<Submission>(sub.userId, 'submissions', (list) =>
+        list.map(s => s.id === id ? { ...s, score, feedback, status: 'graded' } : s)
+      );
+    }
     setSubmissions(prev => prev.map(s => s.id === id ? { ...s, score, feedback, status: 'graded' } : s));
   };
 
+  // Schedule Events (stored in backpack/{targetId}.user.scheduleEvents)
   const addScheduleEvent = async (event: ScheduleEvent) => {
-    await setDoc(doc(db, 'scheduleEvents', event.id), event);
-    setScheduleEvents(prev => [...prev, event]);
+    const cleaned = sanitizeForFirestore(event);
+    const targetUid = currentUser?.id || '';
+
+    if (targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(targetUid, 'scheduleEvents', (list) => [...list.filter(e => e.id !== event.id), cleaned]);
+    }
+    setScheduleEvents(prev => [...prev.filter(e => e.id !== event.id), cleaned]);
   };
 
   const updateScheduleEvent = async (id: string, updates: Partial<ScheduleEvent>) => {
-    await updateDoc(doc(db, 'scheduleEvents', id), updates);
+    const targetUid = currentUser?.id || '';
+    if (targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(targetUid, 'scheduleEvents', (list) =>
+        list.map(e => e.id === id ? { ...e, ...updates } : e)
+      );
+    }
+
     setScheduleEvents(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
     if (updates.isActive) {
       const evt = scheduleEvents.find(e => e.id === id);
@@ -327,10 +593,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteScheduleEvent = async (id: string) => {
-    await deleteDoc(doc(db, 'scheduleEvents', id));
+    const targetUid = currentUser?.id || '';
+    if (targetUid) {
+      await updateBackpackUserField<ScheduleEvent>(targetUid, 'scheduleEvents', (list) =>
+        list.filter(e => e.id !== id)
+      );
+    }
     setScheduleEvents(prev => prev.filter(e => e.id !== id));
   };
 
+  // Real-time course chat messages
   const sendMessage = async (msg: ChatMessage) => {
     await addDoc(collection(db, 'messages'), msg);
   };

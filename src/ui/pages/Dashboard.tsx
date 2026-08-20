@@ -239,7 +239,7 @@ const Dashboard = () => {
             </div>
 
             {currentUser.role === 'organization' && (
-                <AnalyticsOverview courses={myCourses} progressData={userProgress} enrollmentRequests={enrollmentRequests} />
+                <AnalyticsOverview courses={myCourses} progressData={userProgress} enrollmentRequests={enrollmentRequests} orgMembers={orgMembers} />
             )}
 
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">

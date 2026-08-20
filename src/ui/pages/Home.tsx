@@ -1,5 +1,5 @@
 import { Link, Navigate } from "react-router-dom";
-import { Globe, BookOpen, GraduationCap, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
+import { Globe, BookOpen, GraduationCap, ArrowRight, ShieldCheck } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
 
@@ -16,7 +16,7 @@ const Home = () => {
       {/* Hero Section */}
       <div className="text-center max-w-4xl mx-auto px-4">
         <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold mb-6 shadow-sm">
-          <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+          <img src="/backpack-logo.png" alt="Backpack Logo" className="w-4 h-4 object-contain" referrerPolicy="no-referrer" />
           <span>Next-Gen Pan-African Education Platform</span>
         </div>
 
@@ -128,7 +128,7 @@ const Home = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {courses.slice(0, 3).map((course) => {
-              const org = organizations.find((o) => o.id === course.orgId || `org_${o.ownerId}` === course.orgId);
+              const org = organizations.find((o) => o.id === course.orgId || o.ownerId === course.orgId || `org_${o.ownerId}` === course.orgId);
               return (
                 <div key={course.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between hover:border-indigo-500 transition group shadow-sm">
                   <div>

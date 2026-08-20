@@ -54,6 +54,27 @@ export interface User {
   kycDocumentUrl?: string;
   userDocuments?: UserDocument[];
   paystackSubaccount?: PaystackSubaccount;
+  createdAt?: string;
+
+  // Organization attributes stored directly in personalInformation map
+  description?: string;
+  location?: string;
+  baseCurrency?: string;
+  orgType?: 'basic' | 'higher' | 'vocational';
+  address?: string;
+  registrationId?: string;
+  isAccredited?: boolean;
+  accreditingBody?: string;
+  accreditationStatus?: 'accredited' | 'pending' | 'unaccredited';
+  accreditationDocUrl?: string;
+  ownerId?: string;
+  logoUrl?: string;
+  motto?: string;
+  phone?: string;
+  website?: string;
+  themeColor?: string;
+  academicHighlights?: string[];
+  isDeleted?: boolean;
 }
 
 export interface Organization {
@@ -73,6 +94,11 @@ export interface Organization {
   accreditingBody?: string;
   accreditationStatus?: 'accredited' | 'pending' | 'unaccredited';
   accreditationDocUrl?: string;
+  motto?: string;
+  phone?: string;
+  website?: string;
+  themeColor?: string;
+  academicHighlights?: string[];
   isDeleted?: boolean;
   paystackSubaccount?: PaystackSubaccount;
 }

@@ -273,6 +273,14 @@ const CourseDetails = () => {
         <div className="space-y-6 animate-in fade-in">
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
+                    {courseOrg && (
+                        <Link 
+                            to={`/org/${courseOrg.id || course.orgId}`}
+                            className="inline-flex items-center text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline mb-2 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20"
+                        >
+                            <Building className="w-3.5 h-3.5 mr-1" /> {courseOrg.name}
+                        </Link>
+                    )}
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{course.title}</h1>
                     <p className="text-slate-500 dark:text-slate-400 max-w-2xl">{course.description}</p>
                 </div>
