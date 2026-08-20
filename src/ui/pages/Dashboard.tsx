@@ -504,6 +504,15 @@ const Dashboard = () => {
                         }}
                     />
                 )}
+
+                {joiningInvite && (
+                    <CourseJoinModal
+                        course={joiningInvite.course}
+                        invite={joiningInvite.invite}
+                        onClose={() => setJoiningInvite(null)}
+                        onJoinSuccess={() => setJoiningInvite(null)}
+                    />
+                )}
             </div>
         );
     }
@@ -696,32 +705,38 @@ const Dashboard = () => {
                                         <span className="font-medium truncate">
                                             Active Intake: <strong className="text-indigo-600 dark:text-indigo-400">{course.activeSessionName || 'Current Session'}</strong>
                                         </span>
-                                        <button
-                                            onClick={() => setSelectedCourseForSessions(course)}
-                                            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center shrink-0 ml-2"
-                                        >
-                                            <Settings2 className="w-3.5 h-3.5 mr-1" /> Sessions
-                                        </button>
+                                        {currentUser.role === 'organization' && (
+                                            <button
+                                                onClick={() => setSelectedCourseForSessions(course)}
+                                                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center shrink-0 ml-2"
+                                            >
+                                                <Settings2 className="w-3.5 h-3.5 mr-1" /> Sessions
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
                                 <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-xs">
-                                    <button
-                                        onClick={async () => {
-                                            if (isOpen) {
-                                                await closeCourseAdmission(course.id);
-                                            } else {
-                                                await openCourseAdmission(course.id, course.activeSessionId);
-                                            }
-                                        }}
-                                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition border ${
-                                            isOpen
-                                                ? 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-100'
-                                                : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
-                                        }`}
-                                    >
-                                        {isOpen ? 'Close Admission' : 'Open Admission'}
-                                    </button>
+                                    {currentUser.role === 'organization' ? (
+                                        <button
+                                            onClick={async () => {
+                                                if (isOpen) {
+                                                    await closeCourseAdmission(course.id);
+                                                } else {
+                                                    await openCourseAdmission(course.id, course.activeSessionId);
+                                                }
+                                            }}
+                                            className={`px-3 py-1.5 rounded-lg font-bold text-xs transition border ${
+                                                isOpen
+                                                    ? 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-100'
+                                                    : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+                                            }`}
+                                        >
+                                            {isOpen ? 'Close Admission' : 'Open Admission'}
+                                        </button>
+                                    ) : (
+                                        <span className="text-[11px] text-slate-500 font-medium italic">Managed by Organization</span>
+                                    )}
                                     <Link to={`/course/${course.id}`} className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold">
                                         View Classroom &rarr;
                                     </Link>

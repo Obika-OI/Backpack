@@ -74,7 +74,7 @@ const CourseDetails = () => {
 
     const hasAccess = hasStudentAccess || hasInstructorAccess || hasOrgAccess;
     const canStartVideoCall = !isStudent && (hasOrgAccess || hasInstructorAccess || currentUser?.role === 'organization' || currentUser?.role === 'instructor');
-    const canManageSessions = hasOrgAccess || hasInstructorAccess || currentUser?.role === 'organization' || (currentUser?.role === 'instructor' && course?.instructorId === currentUser?.id);
+    const canManageSessions = isOrganization || hasOrgAccess || currentUser?.role === 'admin';
 
     const isAdmissionOpen = course?.admissionStatus !== 'closed';
     const isReapplicationCandidate = myEnrollment?.status === 'rejected';

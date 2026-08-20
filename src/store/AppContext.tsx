@@ -31,6 +31,7 @@ interface AppState {
   assessments: Assessment[];
   submissions: Submission[];
   scheduleEvents: ScheduleEvent[];
+  messages: ChatMessage[];
   notifications: AppNotification[];
   
   addOrganization: (org: Organization) => Promise<void>;
@@ -102,6 +103,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   // Helper to update personalInformation within the user object of a backpack document

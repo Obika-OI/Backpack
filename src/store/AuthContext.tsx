@@ -6,10 +6,13 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut,
+  sendPasswordResetEmail,
   updateProfile 
 } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { User, Role } from '../types';
+
+export const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 interface AuthState {
   currentUser: User | null;
@@ -18,6 +21,7 @@ interface AuthState {
   updateCurrentUser: (updates: Partial<User>) => Promise<void>;
   signup: (name: string, email: string, password: string, role: Role) => Promise<{ user: FirebaseUser; role: Role }>;
   login: (email: string, password: string) => Promise<{ user: FirebaseUser; role: Role }>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -28,6 +32,7 @@ const AuthContext = createContext<AuthState>({
   updateCurrentUser: async () => {},
   signup: async () => { throw new Error('Not implemented'); },
   login: async () => { throw new Error('Not implemented'); },
+  resetPassword: async () => { throw new Error('Not implemented'); },
   logout: async () => {},
 });
 
@@ -36,8 +41,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const resetPassword = async (email: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+      throw new Error('Please enter a valid actual email address.');
+    }
+    await sendPasswordResetEmail(auth, cleanEmail);
+  };
+
   const signup = async (name: string, email: string, password: string, role: Role) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+      throw new Error('Please enter a valid actual email address (e.g. name@domain.com).');
+    }
+
+    const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     const user = userCredential.user;
     
     if (name) {
@@ -95,7 +113,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const login = async (email: string, password: string) => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+      throw new Error('Please enter a valid actual email address.');
+    }
+    const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
     const user = userCredential.user;
     
     let userRole: Role = 'student';
@@ -253,7 +275,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ currentUser, firebaseUser, loading, updateCurrentUser, signup, login, logout }}>
+    <AuthContext.Provider value={{ currentUser, firebaseUser, loading, updateCurrentUser, signup, login, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );
