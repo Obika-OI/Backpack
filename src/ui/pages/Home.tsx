@@ -1,5 +1,5 @@
 import { Link, Navigate } from "react-router-dom";
-import { Globe, BookOpen, GraduationCap, ArrowRight, ShieldCheck } from "lucide-react";
+import { Globe, BookOpen, GraduationCap, ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
 
@@ -16,7 +16,7 @@ const Home = () => {
       {/* Hero Section */}
       <div className="text-center max-w-4xl mx-auto px-4">
         <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold mb-6 shadow-sm">
-          <img src="/backpack-logo.png" alt="Backpack Logo" className="w-4 h-4 object-contain" referrerPolicy="no-referrer" />
+          <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
           <span>Next-Gen Pan-African Education Platform</span>
         </div>
 
