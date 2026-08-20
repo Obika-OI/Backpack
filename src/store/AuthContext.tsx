@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../lib/firebase';
-import { 
-  onAuthStateChanged, 
-  User as FirebaseUser, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
+import {
+  onAuthStateChanged,
+  User as FirebaseUser,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   signOut,
-  updateProfile 
+  updateProfile
 } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { User, Role } from '../types';
@@ -25,10 +25,10 @@ const AuthContext = createContext<AuthState>({
   currentUser: null,
   firebaseUser: null,
   loading: true,
-  updateCurrentUser: async () => {},
+  updateCurrentUser: async () => { },
   signup: async () => { throw new Error('Not implemented'); },
   login: async () => { throw new Error('Not implemented'); },
-  logout: async () => {},
+  logout: async () => { },
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signup = async (name: string, email: string, password: string, role: Role) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
-    
+
     if (name) {
       try {
         await updateProfile(user, { displayName: name });
@@ -59,21 +59,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       kycVerified: false
     };
 
+    const course = {
+      orgMembers: [],
+      courses: [],
+      userProgress: [],
+      materials: [],
+      attendance: [],
+      assessments: [],
+      submissions: [],
+      scheduleEvents: [],
+      messages: []
+    }
+
     // Initialize the user document in Firestore
     await setDoc(doc(db, 'backpack', user.uid), {
       user: {
         personalInformation,
-        courses: [],
         enrollmentRequests: [],
         orgJoinRequests: [],
-        orgMembers: [],
-        userProgress: [],
-        materials: [],
-        attendance: [],
-        assessments: [],
-        submissions: [],
-        scheduleEvents: [],
-        messages: []
+        course
       }
     });
 
@@ -97,7 +101,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (email: string, password: string) => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
-    
+
     let userRole: Role = 'student';
     try {
       const docSnap = await getDoc(doc(db, 'backpack', user.uid));
@@ -123,14 +127,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const updateCurrentUser = async (updates: Partial<User>) => {
     if (!currentUser) return;
     const docRef = doc(db, 'backpack', currentUser.id);
-    
+
     try {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
         const userObj = Array.isArray(data.user) ? data.user[0] || {} : (data.user || {});
         const personalInfo = userObj.personalInformation || {};
-        
+
         const updatedPersonalInfo = { ...personalInfo };
         if (updates.name !== undefined) updatedPersonalInfo.fullname = updates.name;
         if (updates.role !== undefined) updatedPersonalInfo.role = updates.role;
@@ -142,7 +146,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (updates.kycVerified !== undefined) updatedPersonalInfo.kycVerified = updates.kycVerified;
         if (updates.userDocuments !== undefined) updatedPersonalInfo.userDocuments = updates.userDocuments;
         if (updates.paystackSubaccount !== undefined) updatedPersonalInfo.paystackSubaccount = updates.paystackSubaccount;
-        
+
         // Organization data stored directly within personalInformation map
         if (updates.description !== undefined) updatedPersonalInfo.description = updates.description;
         if (updates.address !== undefined) updatedPersonalInfo.address = updates.address;
@@ -162,7 +166,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (updates.themeColor !== undefined) updatedPersonalInfo.themeColor = updates.themeColor;
         if (updates.academicHighlights !== undefined) updatedPersonalInfo.academicHighlights = updates.academicHighlights;
         if (updates.isDeleted !== undefined) updatedPersonalInfo.isDeleted = updates.isDeleted;
-        
+
         // Remove undefined keys so Firestore doesn't fail
         const sanitizedPersonalInfo = Object.fromEntries(
           Object.entries(updatedPersonalInfo).filter(([, v]) => v !== undefined)
@@ -172,10 +176,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           ...userObj,
           personalInformation: sanitizedPersonalInfo
         };
-        
+
         await updateDoc(docRef, { user: updatedUser });
       }
-      
+
       // Optimistic update
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     } catch (err) {
@@ -185,18 +189,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | null = null;
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user: { uid: any; displayName: any; email: string; }) => {
       setFirebaseUser(user);
       if (user) {
         // Use onSnapshot to continuously sync the user doc
         unsubscribeDoc = onSnapshot(
           doc(db, 'backpack', user.uid),
-          (docSnap) => {
+          (docSnap: { exists: () => any; data: () => any; }) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               const userObj = Array.isArray(data.user) ? data.user[0] : data.user;
               const personalInfo = userObj?.personalInformation;
-              
+
               if (personalInfo) {
                 setCurrentUser({
                   id: user.uid,
@@ -234,7 +238,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
             setLoading(false);
           },
-          (error) => {
+          (error: any) => {
             console.error("Error fetching user data", error);
             setLoading(false);
           }
