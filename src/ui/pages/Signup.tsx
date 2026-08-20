@@ -1,14 +1,19 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
 import { Role } from '../../types';
 import { BlueBackpack3DIcon } from '../components/BlueBackpack3DIcon';
+import { Eye, EyeOff } from 'lucide-react';
+
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 const Signup = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [role, setRole] = useState<Role>('student');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,9 +34,26 @@ const Signup = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+      setError('Please enter a valid actual email address (e.g. name@domain.com).');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match. Please ensure both passwords are identical.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await signup(name.trim(), email.trim(), password, role);
+      const res = await signup(name.trim(), cleanEmail, password, role);
       if (res.role === 'organization') {
         navigate('/onboard', { replace: true });
       } else {
@@ -46,7 +68,7 @@ const Signup = () => {
       } else if (errorMessage.includes('weak-password')) {
         setError('Password should be at least 6 characters.');
       } else if (errorMessage.includes('invalid-email')) {
-        setError('Please enter a valid email address.');
+        setError('Please enter a valid actual email address.');
       } else {
         setError(errorMessage);
       }
@@ -111,15 +133,50 @@ const Signup = () => {
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Password
             </label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500 outline-none transition-shadow text-sm"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-4 pr-11 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500 outline-none transition-shadow text-sm"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-white transition"
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Confirm Password
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-4 pr-11 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500 outline-none transition-shadow text-sm"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-white transition"
+                title={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <div>
