@@ -7,7 +7,7 @@ import { useAppContext } from "../../store/AppContext";
 import { Course, Organization } from "../../types";
 import { EnrollmentModal } from "./EnrollmentModal";
 import { 
-  Building, MapPin, Mail, Phone, Globe, Award, ShieldCheck, 
+  Building, MapPin, Phone, Globe, Award, ShieldCheck, 
   BookOpen, Send, GraduationCap, ArrowLeft, Palette, 
   CheckCircle2, ExternalLink, FileText, Search, 
   DollarSign, Check, X, RotateCcw, DoorOpen, DoorClosed
@@ -273,17 +273,12 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
     }
   };
 
-  // Default Academic Highlights if none provided
+  // Academic Highlights (leave empty if not specified by organization)
   const displayHighlights = useMemo(() => {
     if (orgData?.academicHighlights && orgData.academicHighlights.length > 0) {
       return orgData.academicHighlights;
     }
-    return [
-      "Accredited Degree & Diploma Programs",
-      "Industry-Aligned Vocational Specializations",
-      "Global Mentorship & Research Opportunities",
-      "Career Placement & Practical Capstone Tracks"
-    ];
+    return [];
   }, [orgData]);
 
   // Loading State
@@ -395,9 +390,11 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           </h1>
 
           {/* Tagline / Motto */}
-          <p className="mt-3 text-base sm:text-lg italic text-slate-200/90 font-medium max-w-2xl">
-            &ldquo;{orgData.motto || "Excellence in Education, Integrity in Life"}&rdquo;
-          </p>
+          {orgData.motto ? (
+            <p className="mt-3 text-base sm:text-lg italic text-slate-200/90 font-medium max-w-2xl">
+              &ldquo;{orgData.motto}&rdquo;
+            </p>
+          ) : null}
 
           {/* Badges Bar */}
           <div className="flex flex-wrap items-center justify-center gap-2.5 mt-6">
@@ -460,53 +457,52 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
             ></div>
 
             <div className="prose dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed space-y-4 font-normal">
-              <p>
-                {orgData.description || (
-                  `Welcome to ${orgData.name}. Our campus provides a nurturing, rigorous educational environment where students thrive academically, acquire hands-on practical competencies, and build strong ethical character.`
-                )}
-              </p>
-              <p>
-                We offer modern learning facilities, dedicated industry mentors, state-of-the-art curricula, and a rich array of collaborative projects designed to equip graduates for success across pan-African and global markets.
-              </p>
+              {orgData.description ? (
+                <p>{orgData.description}</p>
+              ) : (
+                <p className="text-slate-400 italic">No description provided yet.</p>
+              )}
             </div>
           </div>
 
           {/* [ ACADEMIC HIGHLIGHTS ] */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
-              <h2 
-                className="text-lg sm:text-xl font-bold tracking-wide uppercase flex items-center"
-                style={{ color: activeTheme.primary }}
-              >
-                [ ACADEMIC HIGHLIGHTS ]
-              </h2>
-            </div>
-
-            {/* Themed Accent Divider */}
-            <div 
-              className="h-1 w-20 rounded-full my-4"
-              style={{ backgroundColor: activeTheme.accent }}
-            ></div>
-
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-              {displayHighlights.map((highlight, idx) => (
-                <li 
-                  key={idx} 
-                  className="flex items-start p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80 transition hover:border-slate-300 dark:hover:border-slate-700"
+          {displayHighlights.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
+                <h2 
+                  className="text-lg sm:text-xl font-bold tracking-wide uppercase flex items-center"
+                  style={{ color: activeTheme.primary }}
                 >
-                  <div 
-                    className="w-6 h-6 rounded-full flex items-center justify-center mr-3 shrink-0 mt-0.5"
-                    style={{ backgroundColor: `${activeTheme.accent}20`, color: activeTheme.accent }}
+                  [ ACADEMIC HIGHLIGHTS ]
+                </h2>
+              </div>
+
+              {/* Themed Accent Divider */}
+              <div 
+                className="h-1 w-20 rounded-full my-4"
+                style={{ backgroundColor: activeTheme.accent }}
+              ></div>
+
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                {displayHighlights.map((highlight, idx) => (
+                  <li 
+                    key={idx} 
+                    className="flex items-start p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80 transition hover:border-slate-300 dark:hover:border-slate-700"
                   >
-                    <Check className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                    {highlight}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+                    <div 
+                      className="w-6 h-6 rounded-full flex items-center justify-center mr-3 shrink-0 mt-0.5"
+                      style={{ backgroundColor: `${activeTheme.accent}20`, color: activeTheme.accent }}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                      {highlight}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* =========================================================================================
@@ -529,53 +525,44 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
               ></div>
             </div>
 
-            {/* 📧 Registrar Email */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 flex items-center">
-                <Mail className="w-3.5 h-3.5 mr-1.5 text-indigo-500" /> Registrar & Admissions Email
-              </span>
-              <a 
-                href={`mailto:${orgData.address ? 'admissions@' + orgData.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.edu' : 'admissions@academy.edu'}`}
-                className="text-sm font-bold text-slate-900 dark:text-white hover:underline break-all"
-              >
-                {`admissions@${orgData.name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'academy'}.edu`}
-              </a>
-            </div>
-
-            {/* 📞 Front Desk Phone */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 flex items-center">
-                <Phone className="w-3.5 h-3.5 mr-1.5 text-emerald-500" /> Front Desk Phone
-              </span>
-              <a 
-                href={`tel:${orgData.phone || '+15550192834'}`}
-                className="text-sm font-bold text-slate-900 dark:text-white hover:underline"
-              >
-                {orgData.phone || "+1 (555) 019-2834"}
-              </a>
-            </div>
+            {/* 📧 Phone, Address, Web Portal */}
+            {orgData.phone && (
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 flex items-center">
+                  <Phone className="w-3.5 h-3.5 mr-1.5 text-emerald-500" /> Front Desk Phone
+                </span>
+                <a 
+                  href={`tel:${orgData.phone}`}
+                  className="text-sm font-bold text-slate-900 dark:text-white hover:underline"
+                >
+                  {orgData.phone}
+                </a>
+              </div>
+            )}
 
             {/* 📍 Campus Address */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 flex items-center">
-                <MapPin className="w-3.5 h-3.5 mr-1.5 text-rose-500" /> Campus Address
-              </span>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">
-                {orgData.address || "404 Academy Way"}
-              </p>
-              {orgData.location && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {orgData.location}
+            {orgData.address && (
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 flex items-center">
+                  <MapPin className="w-3.5 h-3.5 mr-1.5 text-rose-500" /> Campus Address
+                </span>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                  {orgData.address}
                 </p>
-              )}
-            </div>
+                {orgData.location && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {orgData.location}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* 🌐 Official Web Portal */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2 flex items-center">
-                <Globe className="w-3.5 h-3.5 mr-1.5 text-sky-500" /> Official Web Portal
-              </span>
-              {orgData.website ? (
+            {orgData.website && (
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2 flex items-center">
+                  <Globe className="w-3.5 h-3.5 mr-1.5 text-sky-500" /> Official Web Portal
+                </span>
                 <a
                   href={orgData.website.startsWith('http') ? orgData.website : `https://${orgData.website}`}
                   target="_blank"
@@ -585,16 +572,8 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                 >
                   Visit Official Portal <ExternalLink className="w-3.5 h-3.5 ml-2" />
                 </a>
-              ) : (
-                <button
-                  onClick={() => alert("Portal URL can be configured in the theme customizer by the institution owner.")}
-                  className="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold text-white transition shadow-md"
-                  style={{ backgroundColor: activeTheme.primary }}
-                >
-                  Visit Parent Portal <ExternalLink className="w-3.5 h-3.5 ml-2" />
-                </button>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* 🛡️ Verification Proof */}
             {orgData.accreditationDocUrl && (
@@ -762,7 +741,19 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                     </div>
 
                     <div>
-                      {status === 'approved' ? (
+                      {currentUser?.role === 'organization' || currentUser?.accountType === 'organization' ? (
+                        <button
+                          onClick={() => navigate(`/course/${course.id}`)}
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95"
+                          style={{ backgroundColor: activeTheme.primary }}
+                        >
+                          {course.orgId === currentUser.id || course.orgId === `org_${currentUser.id}` || isOwner ? (
+                            <>View Classroom <BookOpen className="w-3.5 h-3.5 ml-1.5" /></>
+                          ) : (
+                            <>View Details <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></>
+                          )}
+                        </button>
+                      ) : status === 'approved' ? (
                         <span className="inline-flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl border border-emerald-500/20">
                           <ShieldCheck className="w-4 h-4 mr-1.5" /> Enrolled
                         </span>

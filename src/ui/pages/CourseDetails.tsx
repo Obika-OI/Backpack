@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { Book, MessageSquare, FileText, CheckCircle, Send, Upload, Paperclip, Users, Award, Calendar, Video, Info, X, Clock, CreditCard, Rocket, Building, DoorOpen, DoorClosed, RotateCcw, Settings2 } from "lucide-react";
+import { Book, MessageSquare, FileText, CheckCircle, Send, Upload, Paperclip, Users, Award, Calendar, Video, Info, X, Clock, CreditCard, Rocket, Building, DoorOpen, DoorClosed, RotateCcw, Settings2, UserCheck, Mail } from "lucide-react";
 import { LiveKitCall } from "../components/LiveKitCall";
 import { ChatMessage } from "../../types";
 import { LunchGames } from "../components/LunchGames";
@@ -13,6 +13,7 @@ import { CourseCertificate } from "../components/CourseCertificate";
 import { FileUpload } from "../components/FileUpload";
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { CoursePaymentModal } from "../components/CoursePaymentModal";
+import { CourseJoinModal } from "../components/CourseJoinModal";
 import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
 import { generateId } from "../../lib/id";
 
@@ -24,6 +25,7 @@ const CourseDetails = () => {
     const [activeTab, setActiveTab] = useState<'info' | 'modules' | 'materials' | 'chat' | 'lunch' | 'people' | 'assessments' | 'schedule' | 'certificate'>('info');
     const [showEnrollModal, setShowEnrollModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [showJoinModal, setShowJoinModal] = useState(false);
     const [showSessionModal, setShowSessionModal] = useState(false);
     
     // Chat state
@@ -54,10 +56,15 @@ const CourseDetails = () => {
     const isStudent = currentUser?.role === 'student';
     const isOrganization = currentUser?.role === 'organization';
 
-    const myOrgMemberRecords = orgMembers.filter(m => m.email === currentUser?.email);
+    const myOrgMemberRecords = orgMembers.filter(m => m.email?.toLowerCase() === currentUser?.email?.toLowerCase());
     const onboardedCourseIds = myOrgMemberRecords.flatMap(m => m.courseIds || []);
     
     const myEnrollment = enrollmentRequests.find(r => r.userId === currentUser?.id && r.courseId === courseId);
+    const myInvite = orgMembers.find(m => 
+        m.email?.toLowerCase() === currentUser?.email?.toLowerCase() && 
+        m.status === 'invited' && 
+        (m.courseIds?.includes(courseId as string) || m.orgId === course?.orgId)
+    );
     const isStudentApproved = myEnrollment?.status === 'approved';
     const isStudentPaidOrFree = !course || course.price === 0 || myEnrollment?.paymentStatus === 'paid';
     const hasStudentAccess = isStudentApproved && isStudentPaidOrFree;
@@ -135,7 +142,31 @@ const CourseDetails = () => {
 
     const renderAccessBlocker = () => (
         <div className="max-w-2xl mx-auto py-16 text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            {myEnrollment?.status === 'pending' ? (
+            {myInvite ? (
+                <>
+                    <div className="w-16 h-16 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
+                        <Mail className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">You Have Been Invited!</h2>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+                        <strong className="text-slate-900 dark:text-white">{courseOrg?.name || 'The sponsoring institution'}</strong> has invited you to join <strong className="text-slate-900 dark:text-white">{course.title}</strong>.
+                    </p>
+                    {myInvite.inviteNote && (
+                        <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl text-xs text-indigo-800 dark:text-indigo-300 max-w-md mx-auto border border-indigo-200 dark:border-indigo-800 text-left">
+                            <span className="font-bold block mb-1">Note from Institution:</span>
+                            "{myInvite.inviteNote}"
+                        </div>
+                    )}
+                    <div>
+                        <button
+                            onClick={() => setShowJoinModal(true)}
+                            className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
+                        >
+                            <UserCheck className="w-4 h-4 mr-2" /> Accept Invitation & Join Course
+                        </button>
+                    </div>
+                </>
+            ) : myEnrollment?.status === 'pending' ? (
                 <>
                     <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
                         <Clock className="w-8 h-8" />
@@ -229,6 +260,19 @@ const CourseDetails = () => {
                     >
                         <DoorClosed className="w-4 h-4 mr-2" /> Admissions Closed
                     </button>
+                </>
+            ) : isOrganization ? (
+                <>
+                    <div className="w-16 h-16 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
+                        <Book className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Organization Account</h2>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+                        Organization accounts cannot enroll in courses. You can manage and view the classroom for your own institution's courses.
+                    </p>
+                    <Link to="/dashboard" className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm">
+                        Go to Organization Dashboard
+                    </Link>
                 </>
             ) : (
                 <>
@@ -794,6 +838,15 @@ const CourseDetails = () => {
                         await updateEnrollmentRequest(myEnrollment.id, undefined, 'paid');
                         setShowPaymentModal(false);
                     }}
+                />
+            )}
+
+            {showJoinModal && myInvite && (
+                <CourseJoinModal
+                    course={course}
+                    invite={myInvite}
+                    onClose={() => setShowJoinModal(false)}
+                    onJoinSuccess={() => setShowJoinModal(false)}
                 />
             )}
 

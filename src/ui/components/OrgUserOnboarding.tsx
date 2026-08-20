@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, X, User } from "lucide-react";
+import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, User, X, ArrowRight } from "lucide-react";
 import { OrgMember, User as AppUser, Role } from "../../types";
 import { db } from "../../lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { generateId } from "../../lib/id";
 
 interface OrgUserOnboardingProps {
   courseId?: string;
@@ -12,7 +13,7 @@ interface OrgUserOnboardingProps {
 
 export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }) => {
   const { currentUser } = useAuth();
-  const { orgMembers, addOrgMember, deleteOrgMember, updateOrgMember, courses, addEnrollmentRequest, organizations } = useAppContext();
+  const { orgMembers, addOrgMember, deleteOrgMember, updateOrgMember, courses, organizations } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<'instructors' | 'students'>('instructors');
   const [searchTerm, setSearchTerm] = useState("");
@@ -22,13 +23,16 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
   const [loadingRegisteredUsers, setLoadingRegisteredUsers] = useState(false);
   const [showAppUsersModal, setShowAppUsersModal] = useState(false);
   const [appUsersSearch, setAppUsersSearch] = useState("");
+  const [selectedAppUserId, setSelectedAppUserId] = useState("");
 
   // Form State
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState(courseId || "");
-  const [selectedAppUserId, setSelectedAppUserId] = useState("");
+  const [requiresPayment, setRequiresPayment] = useState(true);
+  const [requiresDocuments, setRequiresDocuments] = useState(true);
+  const [inviteNote, setInviteNote] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -47,9 +51,9 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           if (personalInfo && doc.id !== currentUser?.id) {
             usersList.push({
               id: doc.id,
-              name: personalInfo.fullname || '',
+              name: personalInfo.fullname || personalInfo.name || 'User',
               email: personalInfo.email || '',
-              role: personalInfo.role as Role,
+              role: (personalInfo.role as Role) || 'student',
               createdAt: personalInfo.createdAt || ''
             });
           }
@@ -68,7 +72,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
   if (!currentUser) return null;
 
   const currentOrgId = currentUser.role === 'organization' ? `org_${currentUser.id}` : 
-    (orgMembers.find(m => m.email === currentUser.email)?.orgId || "");
+    (orgMembers.find(m => m.email?.toLowerCase() === currentUser.email?.toLowerCase())?.orgId || "");
   
   const myOrg = organizations.find(o => o.id === currentOrgId || o.ownerId === currentUser.id);
   const orgType = myOrg?.orgType || 'basic';
@@ -85,47 +89,41 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
   const myCourses = currentUser.role === 'organization' 
     ? courses.filter(c => c.orgId === currentUser.id || c.orgId === currentOrgId)
-    : courses.filter(c => orgMembers.some(m => m.email === currentUser.email && m.courseIds?.includes(c.id)));
+    : courses.filter(c => orgMembers.some(m => m.email?.toLowerCase() === currentUser.email?.toLowerCase() && m.courseIds?.includes(c.id)));
 
   const handleOnboardUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
 
     setIsSubmitting(true);
+    const targetCourseId = selectedCourseId || courseId || "";
+    const cleanEmail = email.trim().toLowerCase();
+
     const newMember: OrgMember = {
-      id: `member_${Math.random().toString(36).substring(2, 15)}`,
+      id: generateId('member'),
       orgId: currentOrgId,
       name: name.trim(),
-      email: email.trim(),
+      email: cleanEmail,
       role: activeTab === 'instructors' ? 'instructor' : 'student',
       department: department.trim() || (activeTab === 'instructors' ? 'General Faculty' : 'General Program'),
-      courseIds: selectedCourseId ? [selectedCourseId] : [],
+      courseIds: targetCourseId ? [targetCourseId] : [],
       joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       status: 'invited',
+      requiresPayment: activeTab === 'students' ? requiresPayment : false,
+      requiresDocuments: activeTab === 'students' ? requiresDocuments : false,
+      inviteNote: inviteNote.trim() || undefined,
     };
 
     try {
       await addOrgMember(newMember);
 
-      // Automatically create an approved enrollment for both students and instructors if a course is selected
-      if (selectedCourseId) {
-        await addEnrollmentRequest({
-          id: `req_${Math.random().toString(36).substring(2, 15)}`,
-          userId: newMember.id,
-          orgId: currentOrgId,
-          courseId: selectedCourseId,
-          status: 'approved',
-          userName: newMember.name,
-          courseTitle: myCourses.find((c) => c.id === selectedCourseId)?.title || `Assigned ${classOrCourseText}`,
-        });
-      }
-
       setSuccessMsg(
-        `Successfully invited ${name} as ${activeTab === 'instructors' ? 'Staff Instructor' : 'Enrolled Student'}!`
+        `Successfully sent course invite to ${name} (${cleanEmail})!`
       );
       setName("");
       setEmail("");
       setDepartment("");
+      setInviteNote("");
       if (!courseId) setSelectedCourseId("");
       setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err) {
@@ -133,6 +131,20 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const handleSelectUserAndRedirect = (userToSelect: AppUser) => {
+    setName(userToSelect.name || "");
+    setEmail(userToSelect.email || "");
+    setSelectedAppUserId(userToSelect.id);
+    if (userToSelect.role === 'instructor') setActiveTab('instructors');
+    else if (userToSelect.role === 'student') setActiveTab('students');
+    setShowAppUsersModal(false);
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleBulkImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,6 +162,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
       const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
       let count = 0;
+      const targetCourseId = selectedCourseId || courseId || "";
 
       for (const line of lines) {
         if (line.toLowerCase().includes('name,email')) continue;
@@ -157,37 +170,27 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
         const parts = line.split(',');
         if (parts.length >= 2) {
           const name = parts[0].trim();
-          const email = parts[1].trim();
+          const email = parts[1].trim().toLowerCase();
 
           const newMember: OrgMember = {
-            id: `member_${Math.random().toString(36).substring(2, 15)}`,
+            id: generateId('member'),
             orgId: currentOrgId,
             name,
             email,
             role: activeTab === 'instructors' ? 'instructor' : 'student',
             department: activeTab === 'instructors' ? 'General Faculty' : 'General Program',
-            courseIds: selectedCourseId ? [selectedCourseId] : [],
+            courseIds: targetCourseId ? [targetCourseId] : [],
             joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             status: 'invited',
+            requiresPayment: activeTab === 'students' ? requiresPayment : false,
+            requiresDocuments: activeTab === 'students' ? requiresDocuments : false,
           };
           await addOrgMember(newMember);
-          
-          if (selectedCourseId) {
-            await addEnrollmentRequest({
-              id: `req_${Math.random().toString(36).substring(2, 15)}`,
-              userId: newMember.id,
-              orgId: currentOrgId,
-              courseId: selectedCourseId,
-              status: 'approved',
-              userName: newMember.name,
-              courseTitle: myCourses.find((c) => c.id === selectedCourseId)?.title || `Assigned ${classOrCourseText}`,
-            });
-          }
           count++;
         }
       }
       setIsSubmitting(false);
-      setSuccessMsg(`Successfully imported ${count} users!`);
+      setSuccessMsg(`Successfully imported and invited ${count} users!`);
       setTimeout(() => setSuccessMsg(""), 4000);
     };
     reader.onerror = () => {
@@ -267,7 +270,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       )}
 
       {/* Quick Onboarding Form */}
-      <form onSubmit={handleOnboardUser} className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
+      <form ref={formRef} onSubmit={handleOnboardUser} className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-3">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center">
             <UserPlus className="w-4 h-4 mr-2 text-indigo-500" />
@@ -277,9 +280,9 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             <button
               type="button"
               onClick={() => setShowAppUsersModal(true)}
-              className="flex items-center px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-semibold transition"
+              className="flex items-center px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-semibold transition cursor-pointer"
             >
-              <Users className="w-3.5 h-3.5 mr-1.5" /> Browse App Users ({registeredUsers.length})
+              <Users className="w-3.5 h-3.5 mr-1.5" /> Search Registered Users ({registeredUsers.length})
             </button>
             <label className={`cursor-pointer flex items-center px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
               <Upload className="w-3.5 h-3.5 mr-1.5" /> {isSubmitting ? 'Importing...' : 'Bulk Import (CSV)'}
@@ -288,6 +291,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </div>
         </div>
 
+        {/* Pick Existing Registered User Dropdown */}
         {registeredUsers.length > 0 && (
           <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-2">
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 flex items-center">
@@ -302,6 +306,8 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                 if (found) {
                   setName(found.name || "");
                   setEmail(found.email || "");
+                  if (found.role === 'instructor') setActiveTab('instructors');
+                  else if (found.role === 'student') setActiveTab('students');
                 }
               }}
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
@@ -372,6 +378,46 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* Student Invitation Requirement Overrides & Note */}
+        {activeTab === 'students' && (
+          <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-3">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Student Invitation Requirements
+            </label>
+            <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-800 dark:text-slate-200">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requiresPayment}
+                  onChange={(e) => setRequiresPayment(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                />
+                <span>Require Tuition Fee Payment (if course has fee)</span>
+              </label>
+
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requiresDocuments}
+                  onChange={(e) => setRequiresDocuments(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                />
+                <span>Require Document Submission</span>
+              </label>
+            </div>
+
+            <div>
+              <input
+                type="text"
+                value={inviteNote}
+                onChange={(e) => setInviteNote(e.target.value)}
+                placeholder="Optional invitation note/instructions for student..."
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
           </div>
         )}
 
@@ -523,22 +569,23 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
         )}
       </div>
 
-      {/* App Users Modal */}
+      {/* Search Registered Users Modal */}
       {showAppUsersModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in">
             <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
-                  <Users className="w-5 h-5 text-indigo-500 mr-2" /> Registered App Users
+                  <Users className="w-5 h-5 text-indigo-500 mr-2" /> Registered Backpack Users
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Directly invite students and instructors registered on Backpack to your organization
+                  Directly search and invite students and instructors registered on the platform
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowAppUsersModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg"
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -549,7 +596,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                 <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by name, email, or role..."
+                  placeholder="Search by name, email, or role (e.g. student, instructor)..."
                   value={appUsersSearch}
                   onChange={(e) => setAppUsersSearch(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -566,7 +613,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                   u.email?.toLowerCase().includes(appUsersSearch.toLowerCase()) ||
                   u.role?.toLowerCase().includes(appUsersSearch.toLowerCase())
                 ).length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">No users found matching query</div>
+                <div className="text-center py-8 text-xs text-slate-500">No registered users found matching query</div>
               ) : (
                 registeredUsers.filter(u => 
                   !appUsersSearch || 
@@ -574,10 +621,18 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                   u.email?.toLowerCase().includes(appUsersSearch.toLowerCase()) ||
                   u.role?.toLowerCase().includes(appUsersSearch.toLowerCase())
                 ).map(u => {
-                  const isAlreadyMember = orgMembers.some(m => m.email === u.email && (m.orgId === currentOrgId || m.orgId === currentUser.id));
+                  const isAlreadyMember = orgMembers.some(m => m.email?.toLowerCase() === u.email?.toLowerCase() && (m.orgId === currentOrgId || m.orgId === currentUser.id));
 
                   return (
-                    <div key={u.id} className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700/60 hover:border-indigo-500/40 transition">
+                    <div
+                      key={u.id}
+                      onClick={() => !isAlreadyMember && handleSelectUserAndRedirect(u)}
+                      className={`flex items-center justify-between p-3.5 rounded-xl border transition ${
+                        isAlreadyMember
+                          ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/60 opacity-60 cursor-not-allowed'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-md cursor-pointer'
+                      }`}
+                    >
                       <div className="flex items-center space-x-3">
                         <div className="w-9 h-9 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-sm">
                           {u.name?.charAt(0) || 'U'}
@@ -598,19 +653,10 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                           <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Member
                         </span>
                       ) : (
-                        <button
-                          onClick={() => {
-                            setName(u.name || "");
-                            setEmail(u.email || "");
-                            setSelectedAppUserId(u.id);
-                            setShowAppUsersModal(false);
-                            if (u.role === 'instructor') setActiveTab('instructors');
-                            else if (u.role === 'student') setActiveTab('students');
-                          }}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white text-xs font-semibold rounded-lg transition"
-                        >
-                          Select User
-                        </button>
+                        <span className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition flex items-center shadow-sm">
+                          <span>Select & Invite</span>
+                          <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                        </span>
                       )}
                     </div>
                   );

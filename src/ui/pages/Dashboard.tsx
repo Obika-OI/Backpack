@@ -4,15 +4,17 @@ import { useAuth } from "../../store/AuthContext";
 import {
     CheckCircle, XCircle, Clock, BookOpen, TrendingUp, Award,
     PlayCircle, Eye, CreditCard, Ban, AlertTriangle, RotateCcw,
-    DoorOpen, DoorClosed, Settings2
+    DoorOpen, DoorClosed, Settings2, Mail, UserCheck, Paperclip,
+    Bell, Trash2, Building2
 } from "lucide-react";
 import { AnalyticsOverview } from "../components/AnalyticsOverview";
 import { StudentReviewModal } from "../components/StudentReviewModal";
 import { CoursePaymentModal } from "../components/CoursePaymentModal";
+import { CourseJoinModal } from "../components/CourseJoinModal";
 import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { KnowledgeCityBanner } from "../components/KnowledgeCityBanner";
-import { EnrollmentRequest, Course } from "../../types";
+import { EnrollmentRequest, Course, OrgMember } from "../../types";
 import { Link } from "react-router-dom";
 
 const Dashboard = () => {
@@ -25,11 +27,14 @@ const Dashboard = () => {
         closeCourseAdmission,
         courses,
         userProgress,
-        orgMembers
+        orgMembers,
+        organizations,
+        deleteOrgMember
     } = useAppContext();
     const { currentUser } = useAuth();
     const [selectedReviewReq, setSelectedReviewReq] = useState<EnrollmentRequest | null>(null);
     const [paymentModalReq, setPaymentModalReq] = useState<EnrollmentRequest | null>(null);
+    const [joiningInvite, setJoiningInvite] = useState<{ course: Course; invite: OrgMember } | null>(null);
     const [reapplyReq, setReapplyReq] = useState<EnrollmentRequest | null>(null);
     const [selectedCourseForSessions, setSelectedCourseForSessions] = useState<Course | null>(null);
     const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
@@ -51,6 +56,11 @@ const Dashboard = () => {
 
     // Student Dashboard Logic
     const studentRequests = enrollmentRequests.filter(r => r.userId === currentUser.id);
+    const studentInvites = orgMembers.filter(m => 
+        m.email?.toLowerCase() === currentUser.email?.toLowerCase() && 
+        m.status === 'invited' && 
+        m.role === 'student'
+    );
     const approvedCoursesIds = studentRequests
         .filter(r => r.status === 'approved' && (courses.find(c => c.id === r.courseId)?.price === 0 || r.paymentStatus === 'paid'))
         .map(r => r.courseId);
@@ -70,6 +80,150 @@ const Dashboard = () => {
                         <p className="text-slate-500 dark:text-slate-400 text-sm">Welcome back, {currentUser.name}</p>
                     </div>
                 </div>
+
+                {/* In-App Notification Banner */}
+                {studentInvites.length > 0 && (
+                    <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white p-5 rounded-3xl shadow-lg border border-indigo-400/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3">
+                        <div className="flex items-center space-x-3.5">
+                            <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl shrink-0">
+                                <Bell className="w-6 h-6 text-white animate-bounce" />
+                            </div>
+                            <div>
+                                <div className="flex items-center space-x-2">
+                                    <span className="px-2 py-0.5 bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider rounded-md">
+                                        In-App Notification
+                                    </span>
+                                    <span className="text-xs font-semibold text-indigo-200">
+                                        {studentInvites.length} Pending Invitation{studentInvites.length > 1 ? 's' : ''}
+                                    </span>
+                                </div>
+                                <h2 className="text-lg font-bold mt-0.5">You have official course invitations waiting!</h2>
+                                <p className="text-xs text-indigo-100 mt-0.5">
+                                    Organizations have directly invited you to enroll in their accredited programs. Review your invitations below to accept or decline.
+                                </p>
+                            </div>
+                        </div>
+                        <a
+                            href="#pending-course-invitations"
+                            className="px-4 py-2.5 bg-white text-indigo-700 hover:bg-indigo-50 font-bold text-xs rounded-xl transition shrink-0 shadow-sm"
+                        >
+                            Review Invitations ↓
+                        </a>
+                    </div>
+                )}
+
+                {/* Dedicated Pending Course Invitations Card */}
+                {studentInvites.length > 0 && (
+                    <div id="pending-course-invitations" className="bg-white dark:bg-slate-800 border-2 border-indigo-500/30 dark:border-indigo-500/40 rounded-3xl p-6 space-y-5 shadow-md">
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-4">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+                                    <Mail className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center">
+                                        Pending Course Invitations
+                                        <span className="ml-2 px-2.5 py-0.5 text-xs font-bold bg-indigo-600 text-white rounded-full">
+                                            {studentInvites.length}
+                                        </span>
+                                    </h2>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                        Direct course invitations issued by partner organizations for your student enrollment
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            {studentInvites.map(invite => {
+                                const targetCourse = courses.find(c => invite.courseIds?.includes(c.id)) || courses.find(c => c.orgId === invite.orgId);
+                                if (!targetCourse) return null;
+
+                                const sponsoringOrg = organizations.find(o => o.id === invite.orgId || o.id === targetCourse.orgId || o.ownerId === invite.orgId);
+                                const requiresFee = invite.requiresPayment !== false && targetCourse.price > 0;
+                                const requiresDocs = invite.requiresDocuments !== false && (
+                                    (invite.requiredDocNames && invite.requiredDocNames.length > 0) ||
+                                    (targetCourse.requiredDocuments && targetCourse.requiredDocuments.length > 0)
+                                );
+
+                                return (
+                                    <div key={invite.id} className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-4 hover:border-indigo-500/40 transition">
+                                        <div className="space-y-2.5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-wider flex items-center">
+                                                    <Building2 className="w-3 h-3 mr-1" />
+                                                    {sponsoringOrg?.name || 'Sponsoring Organization'}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400">{invite.joinedAt}</span>
+                                            </div>
+
+                                            <h3 className="font-bold text-base text-slate-900 dark:text-white leading-snug">
+                                                {targetCourse.title}
+                                            </h3>
+
+                                            {targetCourse.qualificationType && (
+                                                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                                    Qualification: <span className="text-slate-700 dark:text-slate-200 font-semibold capitalize">{targetCourse.qualificationType}</span>
+                                                </div>
+                                            )}
+
+                                            {invite.inviteNote && (
+                                                <p className="text-xs text-slate-600 dark:text-slate-300 italic bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                    "{invite.inviteNote}"
+                                                </p>
+                                            )}
+
+                                            <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
+                                                {requiresFee ? (
+                                                    <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold flex items-center border border-amber-500/20">
+                                                        <CreditCard className="w-3.5 h-3.5 mr-1" /> Fee: {targetCourse.currency} {targetCourse.price.toLocaleString()}
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center border border-emerald-500/20">
+                                                        <CheckCircle className="w-3.5 h-3.5 mr-1" /> Fee Waived by Org
+                                                    </span>
+                                                )}
+
+                                                {requiresDocs ? (
+                                                    <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold flex items-center border border-amber-500/20">
+                                                        <Paperclip className="w-3.5 h-3.5 mr-1" /> Docs Required
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center border border-emerald-500/20">
+                                                        <CheckCircle className="w-3.5 h-3.5 mr-1" /> No Docs Required
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center space-x-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                            <button
+                                                onClick={() => setJoiningInvite({ course: targetCourse, invite })}
+                                                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center space-x-1.5 shadow-md shadow-indigo-600/20"
+                                            >
+                                                <UserCheck className="w-4 h-4" />
+                                                <span>Accept & Join Course</span>
+                                            </button>
+
+                                            <button
+                                                onClick={async () => {
+                                                    if (confirm("Are you sure you want to decline this course invitation?")) {
+                                                        await deleteOrgMember(invite.id);
+                                                    }
+                                                }}
+                                                className="px-3 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition flex items-center space-x-1"
+                                                title="Decline Invitation"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                                <span className="hidden sm:inline">Decline</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Knowledge City banner for individual course purchases */}
                 <KnowledgeCityBanner variant="student" />
@@ -623,6 +777,15 @@ const Dashboard = () => {
                 <AdmissionSessionManagerModal
                     course={selectedCourseForSessions}
                     onClose={() => setSelectedCourseForSessions(null)}
+                />
+            )}
+
+            {joiningInvite && (
+                <CourseJoinModal
+                    course={joiningInvite.course}
+                    invite={joiningInvite.invite}
+                    onClose={() => setJoiningInvite(null)}
+                    onJoinSuccess={() => setJoiningInvite(null)}
                 />
             )}
 

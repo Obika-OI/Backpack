@@ -126,6 +126,7 @@ export interface Course {
   paymentTerms?: 'one-time' | 'installment';
   paymentTermsAllowed?: 'one-time' | 'installment' | 'both';
   installmentInterval?: 'weekly' | 'monthly' | 'custom';
+  customMilestonesText?: string;
   qualificationTitle?: string;
   qualificationType?: 'bachelors' | 'masters' | 'doctorate' | 'diploma' | 'certificate' | 'professional' | 'other';
   instructorName?: string;
@@ -236,6 +237,10 @@ export interface OrgMember {
   courseIds?: string[];
   joinedAt: string;
   status: 'active' | 'invited' | 'pending' | 'graduated';
+  requiresPayment?: boolean;
+  requiresDocuments?: boolean;
+  requiredDocNames?: string[];
+  inviteNote?: string;
 }
 
 export interface ChatMessage {

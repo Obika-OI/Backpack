@@ -8,7 +8,7 @@ import { KnowledgeCityBanner } from "../components/KnowledgeCityBanner";
 import { generateId } from "../../lib/id";
 import {
     Plus, X, UploadCloud, CheckCircle2, FileText,
-    Video, CheckSquare, Square, Building2, ShieldAlert, ArrowRight
+    Video, Building2, ShieldAlert, ArrowRight, Check
 } from "lucide-react";
 
 const CourseUpload = () => {
@@ -25,16 +25,13 @@ const CourseUpload = () => {
     const [allowPayInFull, setAllowPayInFull] = useState(true);
     const [allowInstallments, setAllowInstallments] = useState(true);
     const [installmentInterval, setInstallmentInterval] = useState<'weekly' | 'monthly' | 'custom'>('monthly');
+    const [customMilestonesText, setCustomMilestonesText] = useState("");
 
     // Itemized Requirements State
     const [studentReqList, setStudentReqList] = useState<string[]>([]);
     const [newStudentReq, setNewStudentReq] = useState("");
 
-    const [requiredDocList, setRequiredDocList] = useState<string[]>([
-        "Government ID / Passport",
-        "Previous Academic Certificate",
-        "Curriculum Vitae (CV)"
-    ]);
+    const [requiredDocList, setRequiredDocList] = useState<string[]>([]);
     const [newDocName, setNewDocName] = useState("");
 
     const [qualificationTitle, setQualificationTitle] = useState("");
@@ -70,11 +67,15 @@ const CourseUpload = () => {
         );
     }
 
-    // Check organization permissions for instructors
+    // Check organization permissions and orgType
     const myOrgMemberships = orgMembers.filter(m => m.email === currentUser.email && (m.status === 'active' || !m.status));
     const approvedOrgs = currentUser.role === 'instructor'
         ? organizations.filter(org => myOrgMemberships.some(m => m.orgId === org.id || m.orgId === org.ownerId))
         : [];
+
+    const currentOrgIdToUse = currentUser.role === 'organization' ? currentUser.id : selectedOrgId;
+    const activeOrg = organizations.find(o => o.id === currentOrgIdToUse || o.id === `org_${currentOrgIdToUse}` || o.ownerId === currentOrgIdToUse);
+    const isHigherEduOrg = activeOrg?.orgType === 'higher';
 
     // If an instructor is logged in but has NO affiliated organization with permission, block individual upload
     if (currentUser.role === 'instructor' && approvedOrgs.length === 0) {
@@ -224,6 +225,7 @@ const CourseUpload = () => {
                 currency,
                 paymentTermsAllowed,
                 installmentInterval: allowInstallments ? installmentInterval : undefined,
+                customMilestonesText: allowInstallments && installmentInterval === 'custom' ? customMilestonesText.trim() : undefined,
                 qualificationTitle: qualificationTitle.trim() || undefined,
                 qualificationType,
                 instructorName: currentUser.role === 'instructor' ? currentUser.name : undefined,
@@ -334,12 +336,23 @@ const CourseUpload = () => {
                             >
                                 <option value="certificate">Professional Certificate</option>
                                 <option value="diploma">Diploma</option>
-                                <option value="bachelors">Bachelor's Degree (Higher Ed)</option>
-                                <option value="masters">Master's Degree (Higher Ed)</option>
-                                <option value="doctorate">Doctorate (Higher Ed)</option>
+                                <option value="bachelors" disabled={!isHigherEduOrg}>
+                                    Bachelor's Degree {isHigherEduOrg ? '(Higher Ed)' : '(Requires Higher Ed Institution)'}
+                                </option>
+                                <option value="masters" disabled={!isHigherEduOrg}>
+                                    Master's Degree {isHigherEduOrg ? '(Higher Ed)' : '(Requires Higher Ed Institution)'}
+                                </option>
+                                <option value="doctorate" disabled={!isHigherEduOrg}>
+                                    Doctorate {isHigherEduOrg ? '(Higher Ed)' : '(Requires Higher Ed Institution)'}
+                                </option>
                                 <option value="professional">Professional License</option>
                                 <option value="other">Other Credential</option>
                             </select>
+                            {!isHigherEduOrg && (
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                                    Higher education degrees (Bachelors, Masters, Doctorate) are restricted to Higher Education Institutions.
+                                </p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
@@ -389,44 +402,134 @@ const CourseUpload = () => {
                         </div>
                     </div>
 
-                    {/* Payment Terms Tick Boxes */}
+                    {/* Payment Terms Tick Boxes & Interactive Buttons */}
                     {Number(price) > 0 && (
-                        <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                                Permitted Payment Options (Select One or Both)
-                            </label>
-                            <div className="flex flex-wrap gap-4">
+                        <div className="p-5 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                    Permitted Payment Terms (Tick One or Both Options)
+                                </label>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Organisations can enable Pay in Full, Flexible Installments, or both options seamlessly for students.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Pay in Full (One-time payment) Button */}
                                 <button
                                     type="button"
-                                    onClick={() => setAllowPayInFull(!allowPayInFull)}
-                                    className="flex items-center space-x-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                                    onClick={() => {
+                                        const nextVal = !allowPayInFull;
+                                        if (!nextVal && !allowInstallments) return;
+                                        setAllowPayInFull(nextVal);
+                                    }}
+                                    className={`p-4 rounded-2xl border text-left transition-all flex items-start space-x-3 cursor-pointer ${
+                                        allowPayInFull
+                                            ? 'bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20'
+                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                    }`}
                                 >
-                                    {allowPayInFull ? <CheckSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> : <Square className="w-4 h-4 text-slate-400" />}
-                                    <span>Allow Full Payment</span>
+                                    <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all ${
+                                        allowPayInFull ? 'bg-indigo-600 border-indigo-600 text-slate-900 dark:text-white' : 'border-slate-300 dark:border-slate-600'
+                                    }`}>
+                                        {allowPayInFull && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-slate-900 dark:text-white text-xs block">
+                                            Pay in Full (One-time payment)
+                                        </span>
+                                        <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block leading-relaxed">
+                                            Students pay 100% of the tuition upfront upon course checkout.
+                                        </span>
+                                    </div>
                                 </button>
+
+                                {/* Flexible Installments Button */}
                                 <button
                                     type="button"
-                                    onClick={() => setAllowInstallments(!allowInstallments)}
-                                    className="flex items-center space-x-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                                    onClick={() => {
+                                        const nextVal = !allowInstallments;
+                                        if (!nextVal && !allowPayInFull) return;
+                                        setAllowInstallments(nextVal);
+                                    }}
+                                    className={`p-4 rounded-2xl border text-left transition-all flex items-start space-x-3 cursor-pointer ${
+                                        allowInstallments
+                                            ? 'bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20'
+                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                    }`}
                                 >
-                                    {allowInstallments ? <CheckSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> : <Square className="w-4 h-4 text-slate-400" />}
-                                    <span>Allow 3-Split Installments</span>
+                                    <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center shrink-0 border transition-all ${
+                                        allowInstallments ? 'bg-indigo-600 border-indigo-600 text-slate-900 dark:text-white' : 'border-slate-300 dark:border-slate-600'
+                                    }`}>
+                                        {allowInstallments && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-slate-900 dark:text-white text-xs block">
+                                            Flexible Installments
+                                        </span>
+                                        <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block leading-relaxed">
+                                            Students pay tuition over periodic intervals or milestone installments.
+                                        </span>
+                                    </div>
                                 </button>
                             </div>
+
+                            {/* Installment Frequency Options */}
                             {allowInstallments && (
-                                <div className="pt-2 flex items-center gap-3">
-                                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                                        Installment Billing Interval:
+                                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in">
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        Installment Payment Frequency
                                     </label>
-                                    <select
-                                        value={installmentInterval}
-                                        onChange={(e) => setInstallmentInterval(e.target.value as 'weekly' | 'monthly' | 'custom')}
-                                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
-                                    >
-                                        <option value="monthly">Monthly (Every 30 days)</option>
-                                        <option value="weekly">Weekly (Every 7 days)</option>
-                                        <option value="custom">Flexible / Milestone Based</option>
-                                    </select>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setInstallmentInterval('monthly')}
+                                            className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
+                                                installmentInterval === 'monthly'
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            Monthly (Every 30 Days)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setInstallmentInterval('weekly')}
+                                            className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
+                                                installmentInterval === 'weekly'
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            Weekly (Every 7 Days)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setInstallmentInterval('custom')}
+                                            className={`p-3 rounded-xl border text-xs font-bold text-center transition-all ${
+                                                installmentInterval === 'custom'
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            Custom Milestones
+                                        </button>
+                                    </div>
+
+                                    {installmentInterval === 'custom' && (
+                                        <div className="mt-2 space-y-1.5">
+                                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                                Describe Custom Milestone Payment Schedule
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={customMilestonesText}
+                                                onChange={(e) => setCustomMilestonesText(e.target.value)}
+                                                placeholder="e.g. 40% upon admission, 30% mid-semester, 30% before final exams"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

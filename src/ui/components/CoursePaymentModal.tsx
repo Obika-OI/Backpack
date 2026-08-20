@@ -112,8 +112,12 @@ export const CoursePaymentModal: React.FC<CoursePaymentModalProps> = ({
                                     <span className="text-base font-black text-indigo-500 dark:text-indigo-400 block">
                                         {course.currency} {installmentPrice.toLocaleString()}
                                     </span>
-                                    <span className="text-[10px] text-slate-500">
-                                        Per {course.installmentInterval === 'weekly' ? 'week' : 'month'}
+                                    <span className="text-[10px] text-slate-500 block mt-0.5">
+                                        {course.installmentInterval === 'weekly' 
+                                            ? 'Weekly Schedule (7 days)' 
+                                            : course.installmentInterval === 'custom' 
+                                            ? (course.customMilestonesText || 'Flexible Milestone Payments') 
+                                            : 'Monthly Schedule (30 days)'}
                                     </span>
                                 </button>
                             )}

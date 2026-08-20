@@ -668,8 +668,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Org Members (stored in backpack/{orgId}.user.orgMembers and orgMembers collection)
   const addOrgMember = async (member: OrgMember) => {
     const cleaned = sanitizeForFirestore(member);
-    if (member.orgId) {
-      await updateBackpackUserField<OrgMember>(member.orgId, 'orgMembers', (list) => [...list.filter(m => m.id !== member.id), cleaned]);
+    const targetUid = member.orgId?.startsWith('org_') ? member.orgId.replace('org_', '') : (member.orgId || currentUser?.id || '');
+    if (targetUid) {
+      await updateBackpackUserField<OrgMember>(targetUid, 'orgMembers', (list) => [...list.filter(m => m.id !== member.id), cleaned]);
     }
     setOrgMembers(prev => [...prev.filter(m => m.id !== member.id), cleaned]);
   };
@@ -677,7 +678,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const updateOrgMember = async (id: string, updates: Partial<OrgMember>) => {
     const member = orgMembers.find(m => m.id === id);
     if (member && member.orgId) {
-      await updateBackpackUserField<OrgMember>(member.orgId, 'orgMembers', (list) =>
+      const targetUid = member.orgId.startsWith('org_') ? member.orgId.replace('org_', '') : member.orgId;
+      await updateBackpackUserField<OrgMember>(targetUid, 'orgMembers', (list) =>
         list.map(m => m.id === id ? { ...m, ...updates } : m)
       );
     }
@@ -687,7 +689,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteOrgMember = async (id: string) => {
     const member = orgMembers.find(m => m.id === id);
     if (member && member.orgId) {
-      await updateBackpackUserField<OrgMember>(member.orgId, 'orgMembers', (list) =>
+      const targetUid = member.orgId.startsWith('org_') ? member.orgId.replace('org_', '') : member.orgId;
+      await updateBackpackUserField<OrgMember>(targetUid, 'orgMembers', (list) =>
         list.filter(m => m.id !== id)
       );
     }
