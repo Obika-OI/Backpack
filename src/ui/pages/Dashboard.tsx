@@ -81,37 +81,6 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* In-App Notification Banner */}
-                {studentInvites.length > 0 && (
-                    <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white p-5 rounded-3xl shadow-lg border border-indigo-400/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-3">
-                        <div className="flex items-center space-x-3.5">
-                            <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl shrink-0">
-                                <Bell className="w-6 h-6 text-white animate-bounce" />
-                            </div>
-                            <div>
-                                <div className="flex items-center space-x-2">
-                                    <span className="px-2 py-0.5 bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider rounded-md">
-                                        In-App Notification
-                                    </span>
-                                    <span className="text-xs font-semibold text-indigo-200">
-                                        {studentInvites.length} Pending Invitation{studentInvites.length > 1 ? 's' : ''}
-                                    </span>
-                                </div>
-                                <h2 className="text-lg font-bold mt-0.5">You have official course invitations waiting!</h2>
-                                <p className="text-xs text-indigo-100 mt-0.5">
-                                    Organizations have directly invited you to enroll in their accredited programs. Review your invitations below to accept or decline.
-                                </p>
-                            </div>
-                        </div>
-                        <a
-                            href="#pending-course-invitations"
-                            className="px-4 py-2.5 bg-white text-indigo-700 hover:bg-indigo-50 font-bold text-xs rounded-xl transition shrink-0 shadow-sm"
-                        >
-                            Review Invitations ↓
-                        </a>
-                    </div>
-                )}
-
                 {/* Dedicated Pending Course Invitations Card */}
                 {studentInvites.length > 0 && (
                     <div id="pending-course-invitations" className="bg-white dark:bg-slate-800 border-2 border-indigo-500/30 dark:border-indigo-500/40 rounded-3xl p-6 space-y-5 shadow-md">

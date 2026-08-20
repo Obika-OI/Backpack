@@ -4,12 +4,13 @@ import { useAuth } from "../../store/AuthContext";
 import { 
     Building, MapPin, Search, GraduationCap, 
     Award, ShieldCheck, BookOpen, Send, User, Users,
-    Trash2, ChevronRight, X
+    Trash2, ChevronRight, X, UserCheck
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { EnrollmentModal } from "../components/EnrollmentModal";
+import { CourseJoinModal } from "../components/CourseJoinModal";
 import { KnowledgeCityBanner } from "../components/KnowledgeCityBanner";
-import { Course } from "../../types";
+import { Course, OrgMember } from "../../types";
 import { generateId } from "../../lib/id";
 
 const ExploreOrgs = () => {
@@ -27,6 +28,7 @@ const ExploreOrgs = () => {
     
     // Modal State
     const [enrollModalCourse, setEnrollModalCourse] = useState<Course | null>(null);
+    const [joiningInvite, setJoiningInvite] = useState<{ course: Course; invite: OrgMember } | null>(null);
 
     // Active (non-deleted) Organizations
     const activeOrganizations = useMemo(() => {
@@ -289,6 +291,13 @@ const ExploreOrgs = () => {
                             {filteredCourses.map(course => {
                                 const org = activeOrganizations.find(o => o.id === course.orgId || o.ownerId === course.orgId);
                                 const status = getEnrollmentStatus(course.id);
+                                const activeInvite = currentUser?.role === 'student'
+                                    ? orgMembers.find(m => 
+                                        m.email?.toLowerCase() === currentUser?.email?.toLowerCase() && 
+                                        m.status === 'invited' && 
+                                        (m.courseIds?.includes(course.id) || m.orgId === course.orgId)
+                                    )
+                                    : null;
 
                                 return (
                                     <div key={course.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500/50 transition shadow-sm p-6 flex flex-col justify-between group">
@@ -360,6 +369,13 @@ const ExploreOrgs = () => {
                                                     <span className="text-amber-500 text-xs font-bold px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
                                                         Pending Review
                                                     </span>
+                                                ) : activeInvite ? (
+                                                    <button
+                                                        onClick={() => setJoiningInvite({ course, invite: activeInvite })}
+                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center shadow-sm"
+                                                    >
+                                                        <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Accept & Join
+                                                    </button>
                                                 ) : (
                                                     <button
                                                         onClick={() => {
@@ -531,6 +547,19 @@ const ExploreOrgs = () => {
                     course={enrollModalCourse}
                     onClose={() => setEnrollModalCourse(null)}
                     onEnroll={(paymentMethod, documents) => handleEnroll(enrollModalCourse, paymentMethod, documents)}
+                />
+            )}
+
+            {/* JOIN INVITATION MODAL */}
+            {joiningInvite && (
+                <CourseJoinModal
+                    course={joiningInvite.course}
+                    invite={joiningInvite.invite}
+                    onClose={() => setJoiningInvite(null)}
+                    onJoinSuccess={() => {
+                        setJoiningInvite(null);
+                        navigate('/dashboard');
+                    }}
                 />
             )}
         </div>

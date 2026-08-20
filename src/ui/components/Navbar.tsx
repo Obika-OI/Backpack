@@ -11,7 +11,7 @@ import { BlueBackpack3DIcon } from "./BlueBackpack3DIcon";
 export const Navbar = () => {
   const { pathname } = useLocation();
   const { currentUser, logout } = useAuth();
-  const { scheduleEvents, courses, notifications, markNotificationRead, markAllNotificationsRead, clearNotifications, addNotification } = useAppContext();
+  const { scheduleEvents, courses, notifications, orgMembers, organizations, markNotificationRead, markAllNotificationsRead, clearNotifications, addNotification } = useAppContext();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -21,7 +21,33 @@ export const Navbar = () => {
   const notificationRef = useRef<HTMLDivElement>(null);
 
   const activeLiveCalls = scheduleEvents.filter(e => e.isActive);
-  const userNotifications = notifications.filter(n => !n.userId || n.userId === currentUser?.id);
+
+  const studentInvites = currentUser?.role === 'student'
+    ? orgMembers.filter(m => m.email?.toLowerCase() === currentUser?.email?.toLowerCase() && m.status === 'invited')
+    : [];
+
+  const inviteNotifications = studentInvites.map(invite => {
+    const targetCourse = courses.find(c => invite.courseIds?.includes(c.id)) || courses.find(c => c.orgId === invite.orgId);
+    const courseTitle = targetCourse?.title || 'Course';
+    const sponsoringOrg = organizations.find(o => o.id === invite.orgId || o.id === targetCourse?.orgId || o.ownerId === invite.orgId);
+    return {
+      id: `invite_notif_${invite.id}`,
+      userId: currentUser?.id,
+      title: `Course Invitation 🎓`,
+      message: `You have been invited by ${sponsoringOrg?.name || 'an organization'} to enroll in "${courseTitle}". Click to accept & join.`,
+      type: 'info' as const,
+      createdAt: invite.joinedAt || 'Recently',
+      read: false,
+      linkUrl: '/dashboard#pending-course-invitations'
+    };
+  });
+
+  const rawUserNotifications = notifications.filter(n => !n.userId || n.userId === currentUser?.id);
+  const userNotifications = [
+    ...inviteNotifications.filter(invNotif => !rawUserNotifications.some(n => n.id === invNotif.id)),
+    ...rawUserNotifications
+  ];
+
   const unreadCount = userNotifications.filter(n => !n.read).length + activeLiveCalls.length;
 
   const handleToggleNotifications = () => {
@@ -270,7 +296,16 @@ export const Navbar = () => {
                             markNotificationRead(notif.id);
                             if (notif.linkUrl) {
                               setNotificationsOpen(false);
-                              navigate(notif.linkUrl);
+                              if (notif.linkUrl.includes('#')) {
+                                const [path, hash] = notif.linkUrl.split('#');
+                                navigate(path);
+                                setTimeout(() => {
+                                  const el = document.getElementById(hash);
+                                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                }, 200);
+                              } else {
+                                navigate(notif.linkUrl);
+                              }
                             }
                           }}
                           className={`pt-2 pb-2 px-2 rounded-xl transition cursor-pointer flex items-start space-x-2.5 ${!notif.read ? 'bg-indigo-50/70 dark:bg-indigo-950/40' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'

@@ -99,6 +99,14 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     const targetCourseId = selectedCourseId || courseId || "";
     const cleanEmail = email.trim().toLowerCase();
 
+    // Check if target email belongs to an organization account
+    const matchedUser = registeredUsers.find(u => u.email?.toLowerCase() === cleanEmail);
+    if (matchedUser && matchedUser.role === 'organization') {
+      setErrorMsg("Organization users cannot be invited to courses.");
+      setIsSubmitting(false);
+      return;
+    }
+
     const newMember: OrgMember = {
       id: generateId('member'),
       orgId: currentOrgId,
@@ -570,102 +578,105 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       </div>
 
       {/* Search Registered Users Modal */}
-      {showAppUsersModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in">
-            <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
-                  <Users className="w-5 h-5 text-indigo-500 mr-2" /> Registered Backpack Users
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Directly search and invite students and instructors registered on the platform
-                </p>
+      {showAppUsersModal && (() => {
+        const targetRole = activeTab === 'instructors' ? 'instructor' : 'student';
+        const filteredAppUsers = registeredUsers.filter(u => {
+          if (u.role === 'organization') return false;
+          if (u.role !== targetRole) return false;
+          if (appUsersSearch.trim()) {
+            const q = appUsersSearch.toLowerCase().trim();
+            return u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+          }
+          return true;
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in">
+              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
+                    <Users className="w-5 h-5 text-indigo-500 mr-2" /> Registered {activeTab === 'instructors' ? 'Instructors' : 'Students'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Directly search and invite registered {activeTab === 'instructors' ? 'instructors' : 'students'} on the platform
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAppUsersModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowAppUsersModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search by name, email, or role (e.g. student, instructor)..."
-                  value={appUsersSearch}
-                  onChange={(e) => setAppUsersSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+              <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder={`Search registered ${activeTab === 'instructors' ? 'instructors' : 'students'} by name or email...`}
+                    value={appUsersSearch}
+                    onChange={(e) => setAppUsersSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="p-4 overflow-y-auto space-y-3 flex-1">
-              {loadingRegisteredUsers ? (
-                <div className="text-center py-8 text-xs text-slate-500">Loading registered users...</div>
-              ) : registeredUsers.filter(u => 
-                  !appUsersSearch || 
-                  u.name?.toLowerCase().includes(appUsersSearch.toLowerCase()) || 
-                  u.email?.toLowerCase().includes(appUsersSearch.toLowerCase()) ||
-                  u.role?.toLowerCase().includes(appUsersSearch.toLowerCase())
-                ).length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">No registered users found matching query</div>
-              ) : (
-                registeredUsers.filter(u => 
-                  !appUsersSearch || 
-                  u.name?.toLowerCase().includes(appUsersSearch.toLowerCase()) || 
-                  u.email?.toLowerCase().includes(appUsersSearch.toLowerCase()) ||
-                  u.role?.toLowerCase().includes(appUsersSearch.toLowerCase())
-                ).map(u => {
-                  const isAlreadyMember = orgMembers.some(m => m.email?.toLowerCase() === u.email?.toLowerCase() && (m.orgId === currentOrgId || m.orgId === currentUser.id));
+              <div className="p-4 overflow-y-auto space-y-3 flex-1">
+                {loadingRegisteredUsers ? (
+                  <div className="text-center py-8 text-xs text-slate-500">Loading registered users...</div>
+                ) : filteredAppUsers.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-slate-500">No registered {activeTab === 'instructors' ? 'instructors' : 'students'} found matching query</div>
+                ) : (
+                  filteredAppUsers.map(u => {
+                    const isAlreadyMember = orgMembers.some(m => m.email?.toLowerCase() === u.email?.toLowerCase() && (m.orgId === currentOrgId || m.orgId === currentUser.id));
 
-                  return (
-                    <div
-                      key={u.id}
-                      onClick={() => !isAlreadyMember && handleSelectUserAndRedirect(u)}
-                      className={`flex items-center justify-between p-3.5 rounded-xl border transition ${
-                        isAlreadyMember
-                          ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/60 opacity-60 cursor-not-allowed'
-                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-md cursor-pointer'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-9 h-9 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-sm">
-                          {u.name?.charAt(0) || 'U'}
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-slate-900 dark:text-white text-xs">{u.name}</span>
-                            <span className="px-2 py-0.5 text-[10px] uppercase font-bold rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                              {u.role}
-                            </span>
+                    return (
+                      <div
+                        key={u.id}
+                        onClick={() => !isAlreadyMember && handleSelectUserAndRedirect(u)}
+                        className={`flex items-center justify-between p-3.5 rounded-xl border transition ${
+                          isAlreadyMember
+                            ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/60 opacity-60 cursor-not-allowed'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-md cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-9 h-9 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-sm">
+                            {u.name?.charAt(0) || 'U'}
                           </div>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</p>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-bold text-slate-900 dark:text-white text-xs">{u.name}</span>
+                              <span className="px-2 py-0.5 text-[10px] uppercase font-bold rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                {u.role}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</p>
+                          </div>
                         </div>
-                      </div>
 
-                      {isAlreadyMember ? (
-                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-lg flex items-center">
-                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Member
-                        </span>
-                      ) : (
-                        <span className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition flex items-center shadow-sm">
-                          <span>Select & Invite</span>
-                          <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                        </span>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+                        {isAlreadyMember ? (
+                          <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-lg flex items-center">
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Member
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition flex items-center shadow-sm">
+                            <span>Select & Invite</span>
+                            <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

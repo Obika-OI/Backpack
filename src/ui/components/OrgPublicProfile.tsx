@@ -4,13 +4,14 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
-import { Course, Organization } from "../../types";
+import { Course, Organization, OrgMember } from "../../types";
 import { EnrollmentModal } from "./EnrollmentModal";
+import { CourseJoinModal } from "./CourseJoinModal";
 import { 
   Building, MapPin, Phone, Globe, Award, ShieldCheck, 
   BookOpen, Send, GraduationCap, ArrowLeft, Palette, 
   CheckCircle2, ExternalLink, FileText, Search, 
-  DollarSign, Check, X, RotateCcw, DoorOpen, DoorClosed
+  DollarSign, Check, X, RotateCcw, DoorOpen, DoorClosed, UserCheck
 } from "lucide-react";
 
 export interface OrgPublicProfileProps {
@@ -45,6 +46,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
     organizations, 
     courses: allGlobalCourses, 
     enrollmentRequests, 
+    orgMembers,
     addEnrollmentRequest, 
     updateOrganization 
   } = useAppContext();
@@ -60,6 +62,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQualType, setSelectedQualType] = useState<string>("all");
   const [enrollModalCourse, setEnrollModalCourse] = useState<Course | null>(null);
+  const [joiningInvite, setJoiningInvite] = useState<{ course: Course; invite: OrgMember } | null>(null);
   const [enrollingCourseId, setEnrollingCourseId] = useState<string | null>(null);
 
   // Customizer Drawer State (for org owner)
@@ -666,6 +669,13 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
             {filteredCourses.map((course) => {
               const status = getRequestStatus(course.id);
               const isEnrolling = enrollingCourseId === course.id;
+              const activeInvite = currentUser?.role === 'student'
+                ? orgMembers.find(m => 
+                    m.email?.toLowerCase() === currentUser?.email?.toLowerCase() && 
+                    m.status === 'invited' && 
+                    (m.courseIds?.includes(course.id) || m.orgId === course.orgId || m.orgId === orgData?.id)
+                  )
+                : null;
 
               const isOpen = course.admissionStatus !== 'closed';
               const isRejected = status === 'rejected';
@@ -761,6 +771,13 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                         <span className="inline-flex items-center text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-2 rounded-xl border border-amber-500/20">
                           Pending Review
                         </span>
+                      ) : activeInvite ? (
+                        <button
+                          onClick={() => setJoiningInvite({ course, invite: activeInvite })}
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95 bg-emerald-600"
+                        >
+                          <UserCheck className="w-3.5 h-3.5 mr-1.5" /> Accept & Join
+                        </button>
                       ) : isRejected ? (
                         isOpen ? (
                           <button
@@ -1026,6 +1043,19 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
           course={enrollModalCourse} 
           onClose={() => setEnrollModalCourse(null)} 
           onEnroll={(paymentMethod, documents) => handleEnroll(enrollModalCourse.id, enrollModalCourse.title, paymentMethod, documents)} 
+        />
+      )}
+
+      {/* Join Invitation Modal */}
+      {joiningInvite && (
+        <CourseJoinModal
+          course={joiningInvite.course}
+          invite={joiningInvite.invite}
+          onClose={() => setJoiningInvite(null)}
+          onJoinSuccess={() => {
+            setJoiningInvite(null);
+            navigate('/dashboard');
+          }}
         />
       )}
     </div>
