@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Heart, Sparkles, Brain, Trophy, RotateCcw, Check, Smile, Rocket, Play, Volume2, VolumeX, Gift, ShieldCheck, Coins, Zap, Eye, Ticket, Star, Coffee } from "lucide-react";
 
@@ -611,7 +612,7 @@ export const LunchGames = () => {
                   {card.isFlipped || card.isMatched ? (
                     card.icon
                   ) : (
-                    <img src="/backpack-logo.png" alt="Card Back" className="w-10 h-10 object-contain pointer-events-none drop-shadow-sm" referrerPolicy="no-referrer" />
+                    <Backpack className="w-8 h-8 text-indigo-600 dark:text-indigo-400 pointer-events-none drop-shadow-sm" />
                   )}
                 </button>
               ))}

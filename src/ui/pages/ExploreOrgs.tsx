@@ -42,7 +42,7 @@ const ExploreOrgs = () => {
         return courses.filter(course => {
             // Must belong to an active org
             const org = activeOrganizations.find(o => o.id === course.orgId || o.ownerId === course.orgId);
-            if (!org) return false;
+            
 
             // Search query check
             const q = searchQuery.toLowerCase().trim();
@@ -50,7 +50,7 @@ const ExploreOrgs = () => {
                 const matchesTitle = course.title.toLowerCase().includes(q);
                 const matchesDesc = course.description.toLowerCase().includes(q);
                 const matchesQual = course.qualificationTitle?.toLowerCase().includes(q);
-                const matchesOrg = org.name.toLowerCase().includes(q);
+                const matchesOrg = org ? org.name.toLowerCase().includes(q) : false;
                 const matchesInst = course.instructorName?.toLowerCase().includes(q);
                 if (!matchesTitle && !matchesDesc && !matchesQual && !matchesOrg && !matchesInst) {
                     return false;
@@ -107,7 +107,7 @@ const ExploreOrgs = () => {
             return;
         }
         await addEnrollmentRequest({
-            id: `req_${crypto.randomUUID()}`,
+            id: `req_${Math.random().toString(36).substring(2, 15)}`,
             userId: currentUser.id,
             userName: currentUser.name,
             orgId: course.orgId,

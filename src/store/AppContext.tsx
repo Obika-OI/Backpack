@@ -507,7 +507,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Materials (stored in backpack/{targetId}.user.materials)
   const addMaterial = async (material: Material) => {
-    const matId = material.id || `mat_${crypto.randomUUID()}`;
+    const matId = material.id || `mat_${Math.random().toString(36).substring(2, 15)}`;
     const cleaned = sanitizeForFirestore({ ...material, id: matId });
     const targetUid = currentUser?.id || '';
 

@@ -40,8 +40,8 @@ const CourseUpload = () => {
     const [selectedOrgId, setSelectedOrgId] = useState("");
     const [loading, setLoading] = useState(false);
     
-    const [modules, setModules] = useState<CourseModule[]>([
-        { id: `m${crypto.randomUUID()}`, title: "", content: "", media: [] }
+    const [modules, setModules] = useState<CourseModule[]>(() => [
+        { id: `m${Math.random().toString(36).substring(2, 15)}`, title: "", content: "", media: [] }
     ]);
 
     if (!currentUser || (currentUser.role !== 'organization' && currentUser.role !== 'instructor')) {
@@ -59,7 +59,7 @@ const CourseUpload = () => {
         : [];
 
     const addModule = () => {
-        setModules([...modules, { id: `m${crypto.randomUUID()}`, title: "", content: "", media: [] }]);
+        setModules([...modules, { id: `m${Math.random().toString(36).substring(2, 15)}`, title: "", content: "", media: [] }]);
     };
 
     const updateModule = (index: number, field: keyof CourseModule, value: unknown) => {
@@ -78,7 +78,7 @@ const CourseUpload = () => {
         const mediaName = `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} file ${currentMedia.length + 1}`;
         newModules[index] = {
             ...newModules[index],
-            media: [...currentMedia, { id: `med_${crypto.randomUUID()}`, name: mediaName, url, type: fileType }]
+            media: [...currentMedia, { id: `med_${Math.random().toString(36).substring(2, 15)}`, name: mediaName, url, type: fileType }]
         };
         setModules(newModules);
     };
@@ -155,7 +155,7 @@ const CourseUpload = () => {
 
         try {
             await addCourse({
-                id: `c_${crypto.randomUUID()}`,
+                id: `c_${Math.random().toString(36).substring(2, 15)}`,
                 orgId: orgIdToUse,
                 title,
                 description,

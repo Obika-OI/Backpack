@@ -93,7 +93,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
     setIsSubmitting(true);
     const newMember: OrgMember = {
-      id: `member_${crypto.randomUUID()}`,
+      id: `member_${Math.random().toString(36).substring(2, 15)}`,
       orgId: currentOrgId,
       name: name.trim(),
       email: email.trim(),
@@ -110,7 +110,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       // Automatically create an approved enrollment for both students and instructors if a course is selected
       if (selectedCourseId) {
         await addEnrollmentRequest({
-          id: `req_${crypto.randomUUID()}`,
+          id: `req_${Math.random().toString(36).substring(2, 15)}`,
           userId: newMember.id,
           orgId: currentOrgId,
           courseId: selectedCourseId,
@@ -160,7 +160,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           const email = parts[1].trim();
 
           const newMember: OrgMember = {
-            id: `member_${crypto.randomUUID()}`,
+            id: `member_${Math.random().toString(36).substring(2, 15)}`,
             orgId: currentOrgId,
             name,
             email,
@@ -174,7 +174,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           
           if (selectedCourseId) {
             await addEnrollmentRequest({
-              id: `req_${crypto.randomUUID()}`,
+              id: `req_${Math.random().toString(36).substring(2, 15)}`,
               userId: newMember.id,
               orgId: currentOrgId,
               courseId: selectedCourseId,

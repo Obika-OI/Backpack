@@ -82,7 +82,7 @@ const CourseDetails = () => {
         const roomName = `${organisationName}-${courseTitle}-${timestamp}`;
         const meetingUrl = `https://meet.jit.si/${roomName}`;
         await addScheduleEvent({
-            id: `ev_${crypto.randomUUID()}`,
+            id: `ev_${Math.random().toString(36).substring(2, 15)}`,
             courseId,
             title: "Live Class Session",
             date: new Date().toISOString().split('T')[0],
@@ -98,7 +98,7 @@ const CourseDetails = () => {
     const handleEnrollSubmit = async (paymentMethod: 'one-time' | 'installment', documents?: Record<string, string>) => {
         if (!currentUser || !course) return;
         await addEnrollmentRequest({
-            id: `req_${crypto.randomUUID()}`,
+            id: `req_${Math.random().toString(36).substring(2, 15)}`,
             userId: currentUser.id,
             userName: currentUser.name,
             orgId: course.orgId,
@@ -118,9 +118,8 @@ const CourseDetails = () => {
 
     if (!course) return <div className="text-center py-12 text-slate-500 dark:text-slate-400">Course not found.</div>;
 
-    if (!hasAccess && isStudent) {
-        return (
-            <div className="max-w-2xl mx-auto py-16 text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
+    const renderAccessBlocker = () => (
+        <div className="max-w-2xl mx-auto py-16 text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
                 {myEnrollment?.status === 'pending' ? (
                     <>
                         <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
@@ -168,28 +167,9 @@ const CourseDetails = () => {
                     </>
                 )}
 
-                {showEnrollModal && (
-                    <EnrollmentModal
-                        course={course}
-                        onClose={() => setShowEnrollModal(false)}
-                        onEnroll={handleEnrollSubmit}
-                    />
-                )}
+                            </div>
+    );
 
-                {showPaymentModal && myEnrollment && (
-                    <CoursePaymentModal
-                        course={course}
-                        request={myEnrollment}
-                        onClose={() => setShowPaymentModal(false)}
-                        onPaymentSuccess={async () => {
-                            await updateEnrollmentRequest(myEnrollment.id, undefined, 'paid');
-                            setShowPaymentModal(false);
-                        }}
-                    />
-                )}
-            </div>
-        );
-    }
 
     const handleCompleteModule = (moduleId: string) => {
         if (!currentUser || !isStudent) return;
@@ -215,7 +195,7 @@ const CourseDetails = () => {
             }
         } else {
             newModules.push({
-                id: `mod_${crypto.randomUUID()}`,
+                id: `mod_${Math.random().toString(36).substring(2, 15)}`,
                 title: editModuleTitle,
                 content: editModuleContent
             });
@@ -252,7 +232,7 @@ const CourseDetails = () => {
         if ((!chatMsg.trim() && !chatAttachmentUrl) || !currentUser) return;
         
         const newMsg: ChatMessage = {
-            id: `msg_${crypto.randomUUID()}`,
+            id: `msg_${Math.random().toString(36).substring(2, 15)}`,
             courseId: course.id,
             senderId: currentUser.id,
             senderName: currentUser.name,
@@ -343,9 +323,12 @@ const CourseDetails = () => {
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 min-h-[400px]">
+                {!hasAccess && isStudent && activeTab !== 'info' ? renderAccessBlocker() : (
+                    <>
                 {activeTab === 'info' && (
                     <div className="p-6 md:p-8 space-y-8 animate-in fade-in">
                         <div>
+                            {!hasAccess && isStudent && renderAccessBlocker()}
                             <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">Admission & Guidelines</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-6">
@@ -678,8 +661,29 @@ const CourseDetails = () => {
                         <LunchGames />
                     </div>
                 )}
+                    </>
+                )}
             </div>
-        </div>
+{showEnrollModal && (
+                    <EnrollmentModal
+                        course={course}
+                        onClose={() => setShowEnrollModal(false)}
+                        onEnroll={handleEnrollSubmit}
+                    />
+                )}
+
+                {showPaymentModal && myEnrollment && (
+                    <CoursePaymentModal
+                        course={course}
+                        request={myEnrollment}
+                        onClose={() => setShowPaymentModal(false)}
+                        onPaymentSuccess={async () => {
+                            await updateEnrollmentRequest(myEnrollment.id, undefined, 'paid');
+                            setShowPaymentModal(false);
+                        }}
+                    />
+                )}
+                    </div>
     );
 };
 

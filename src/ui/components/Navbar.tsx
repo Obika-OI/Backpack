@@ -1,8 +1,9 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
-import { Briefcase, GraduationCap, LogOut, Moon, Sun, Menu, X, Bell, Video, CheckCheck, Trash2, Send, ShieldCheck, AlertCircle, Rocket } from "lucide-react";
+import { Briefcase, GraduationCap, LogOut, Moon, Sun, Menu, X, Bell, Video, CheckCheck, Trash2, Send, ShieldCheck, AlertCircle, Rocket, Backpack } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { getNotificationPermission, requestPushPermission, sendPushNotification } from "../../lib/pushNotifications";
 
@@ -97,7 +98,7 @@ export const Navbar = () => {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" onClick={closeMenu} className="flex items-center space-x-3.5 group">
           <div className="flex items-center justify-center bg-transparent transition-transform group-hover:scale-105">
-            <img src="/backpack-logo.png" alt="Backpack Logo" className="h-14 w-14 object-contain" referrerPolicy="no-referrer" />
+            <Backpack className="h-10 w-10 text-indigo-600 dark:text-indigo-400" />
           </div>
 
           <div className="flex flex-col leading-tight">

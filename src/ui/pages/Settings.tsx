@@ -418,7 +418,7 @@ export const Settings = () => {
         }
 
         const newDoc: UserDocument = {
-            id: `doc_${crypto.randomUUID()}`,
+            id: `doc_${Math.random().toString(36).substring(2, 15)}`,
             title: newCertTitle.trim(),
             url: newCertUrl,
             category: newCertCategory,

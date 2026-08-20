@@ -4,7 +4,7 @@ import { storage } from "./firebase";
 export const uploadFile = async (file: File): Promise<string> => {
   try {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+    const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
     const storageRef = ref(storage, `uploads/${fileName}`);
     
     await uploadBytes(storageRef, file);

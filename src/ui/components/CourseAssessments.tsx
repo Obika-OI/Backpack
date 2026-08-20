@@ -30,7 +30,7 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
     const handleCreateAssessment = async (e: React.FormEvent) => {
         e.preventDefault();
         const newAssessment: Assessment = {
-            id: `ass_${crypto.randomUUID()}`,
+            id: `ass_${Math.random().toString(36).substring(2, 15)}`,
             courseId,
             title,
             type,
@@ -48,7 +48,7 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
     const handleSubmitAssessment = async (assessmentId: string) => {
         if (!currentUser || (!submissionContent.trim() && !submissionFileUrl)) return;
         const sub: Submission = {
-            id: `sub_${crypto.randomUUID()}`,
+            id: `sub_${Math.random().toString(36).substring(2, 15)}`,
             assessmentId,
             userId: currentUser.id,
             courseId,

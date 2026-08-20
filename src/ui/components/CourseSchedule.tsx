@@ -47,7 +47,7 @@ export const CourseSchedule = ({ courseId, isStudent }: { courseId: string, isSt
         const eventTimestamp = date && time ? new Date(`${date}T${time}`).getTime() : Date.now();
         const defaultMeetingUrl = `https://meet.jit.si/${organisationName}-${courseTitle}-${eventTimestamp}`;
         const newEvent: ScheduleEvent = {
-            id: `evt_${crypto.randomUUID()}`,
+            id: `evt_${Math.random().toString(36).substring(2, 15)}`,
             courseId,
             title,
             date,

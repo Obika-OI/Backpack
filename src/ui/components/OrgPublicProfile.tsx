@@ -207,7 +207,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
 
     setEnrollingCourseId(courseId);
     try {
-      const reqId = `req_${crypto.randomUUID()}`;
+      const reqId = `req_${Math.random().toString(36).substring(2, 15)}`;
       await addEnrollmentRequest({
         id: reqId,
         userId: currentUser.id,
