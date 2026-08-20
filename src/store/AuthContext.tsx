@@ -72,7 +72,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         attendance: [],
         assessments: [],
         submissions: [],
-        scheduleEvents: []
+        scheduleEvents: [],
+        messages: []
       }
     });
 

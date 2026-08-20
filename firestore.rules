@@ -25,11 +25,6 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
-    // Real-time course chat messages
-    match /messages/{messageId} {
-      allow read, write: if isAuthenticated();
-    }
-
     // Fallback rule for any other collection documents
     match /{document=**} {
       allow read: if true;

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, updateDoc, doc, getDoc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
 import { 
   Assessment, 
   Submission, 
@@ -604,7 +604,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Real-time course chat messages
   const sendMessage = async (msg: ChatMessage) => {
-    await addDoc(collection(db, 'messages'), msg);
+    const cleaned = sanitizeForFirestore(msg);
+    const course = courses.find(c => c.id === msg.courseId);
+    const targetUid = course?.orgId || currentUser?.id || '';
+    await updateBackpackUserField<ChatMessage>(targetUid, 'messages', (list) => [...list, cleaned]);
   };
 
   return (
