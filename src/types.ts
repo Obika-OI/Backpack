@@ -103,6 +103,19 @@ export interface Organization {
   paystackSubaccount?: PaystackSubaccount;
 }
 
+export interface AdmissionSession {
+  id: string;
+  name: string; // e.g. "2026/2027 Session", "Fall 2026 Cohort", "Batch A - 2026"
+  status: 'open' | 'closed';
+  startDate?: string;
+  endDate?: string;
+  applicationDeadline?: string;
+  academicYear?: string;
+  notes?: string;
+  createdAt: string;
+  closedAt?: string;
+}
+
 export interface Course {
   id: string;
   orgId: string;
@@ -121,6 +134,10 @@ export interface Course {
   requirements?: string;
   applicationProcess?: string;
   instructorRequirements?: string;
+  admissionStatus?: 'open' | 'closed'; // 'open' = accepting applications, 'closed' = admissions closed
+  activeSessionId?: string;
+  activeSessionName?: string;
+  admissionSessions?: AdmissionSession[];
   modules: CourseModule[];
   certificateConfig?: { enabled: boolean; logoUrl?: string; signatureUrl?: string; customText?: string; orgName?: string; gradeLevel?: string; authorizedSealUrl?: string; qualificationTitle?: string };
 }
@@ -149,18 +166,40 @@ export interface OrgJoinRequest {
   status: 'pending' | 'approved' | 'rejected';
 }
 
+export interface ReapplicationRecord {
+  id: string;
+  sessionId?: string;
+  sessionName?: string;
+  appliedAt: string;
+  status: 'rejected' | 'cancelled';
+  rejectedAt?: string;
+  rejectionReason?: string;
+}
+
 export interface EnrollmentRequest {
   id: string;
   userId: string;
   orgId: string;
   courseId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
   paymentStatus?: 'unpaid' | 'paid';
   userName?: string;
+  userEmail?: string;
   courseTitle?: string;
   paymentMethod?: 'one-time' | 'installment';
-  documents?: Record<string, string>;
+  sessionId?: string;
+  sessionName?: string;
+  documents?: Record<string, string>; // docName -> fileUrl
+  additionalDocuments?: Array<{ id: string; name: string; url: string }>;
+  requirementAnswers?: Record<string, string>;
+  studentNotes?: string;
   requirementFileUrl?: string;
+  appliedAt?: string;
+  cancelledAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  rejectedSessionId?: string;
+  reapplicationHistory?: ReapplicationRecord[];
 }
 
 export interface UserProgress {

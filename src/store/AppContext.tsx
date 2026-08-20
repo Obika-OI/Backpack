@@ -39,7 +39,12 @@ interface AppState {
   addCourse: (course: Course) => Promise<void>;
   updateCourse: (courseId: string, updates: Partial<Course>) => Promise<void>;
   addEnrollmentRequest: (req: EnrollmentRequest) => Promise<void>;
-  updateEnrollmentRequest: (id: string, status?: 'approved' | 'rejected', paymentStatus?: 'unpaid' | 'paid') => Promise<void>;
+  updateEnrollmentRequest: (id: string, status?: 'approved' | 'rejected' | 'cancelled' | 'pending', paymentStatus?: 'unpaid' | 'paid', rejectionReason?: string) => Promise<void>;
+  cancelEnrollmentRequest: (id: string) => Promise<void>;
+  openCourseAdmission: (courseId: string, sessionId?: string) => Promise<void>;
+  closeCourseAdmission: (courseId: string) => Promise<void>;
+  createCourseAdmissionSession: (courseId: string, sessionData: { name: string; startDate?: string; endDate?: string; applicationDeadline?: string; academicYear?: string; notes?: string; autoOpen?: boolean }) => Promise<void>;
+  updateCourseAdmissionSession: (courseId: string, sessionId: string, updates: Partial<AdmissionSession>) => Promise<void>;
   addOrgJoinRequest: (req: OrgJoinRequest) => Promise<void>;
   updateOrgJoinRequest: (id: string, status: 'approved' | 'rejected') => Promise<void>;
   addOrgMember: (member: OrgMember) => Promise<void>;
@@ -365,24 +370,79 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Enrollment Request Operations (stored in backpack/{userId}.user.enrollmentRequests & org's backpack)
   const addEnrollmentRequest = async (req: EnrollmentRequest) => {
-    const cleaned = sanitizeForFirestore(req);
-    // Store in student's backpack
+    // Check if there was an existing request for this user and course (e.g. previously rejected or cancelled)
+    const existingReq = enrollmentRequests.find(r => r.userId === req.userId && r.courseId === req.courseId);
+    let reapplicationHistory = req.reapplicationHistory || [];
+
+    if (existingReq && (existingReq.status === 'rejected' || existingReq.status === 'cancelled')) {
+      const pastRecord: ReapplicationRecord = {
+        id: existingReq.id,
+        sessionId: existingReq.sessionId,
+        sessionName: existingReq.sessionName,
+        appliedAt: existingReq.appliedAt || new Date().toISOString(),
+        status: existingReq.status,
+        rejectedAt: existingReq.rejectedAt,
+        rejectionReason: existingReq.rejectionReason
+      };
+      reapplicationHistory = [
+        ...(existingReq.reapplicationHistory || []),
+        pastRecord
+      ];
+    }
+
+    const payload: EnrollmentRequest = {
+      ...req,
+      reapplicationHistory
+    };
+    const cleaned = sanitizeForFirestore(payload);
+
+    // Store in student's backpack (replacing any existing request for same course or id)
     if (req.userId) {
-      await updateBackpackUserField<EnrollmentRequest>(req.userId, 'enrollmentRequests', (list) => [...list.filter(r => r.id !== req.id), cleaned]);
+      await updateBackpackUserField<EnrollmentRequest>(req.userId, 'enrollmentRequests', (list) => [
+        ...list.filter(r => r.id !== req.id && !(r.courseId === req.courseId && r.userId === req.userId)),
+        cleaned
+      ]);
     }
     // Also store in org's backpack if distinct
     if (req.orgId && req.orgId !== req.userId) {
-      await updateBackpackUserField<EnrollmentRequest>(req.orgId, 'enrollmentRequests', (list) => [...list.filter(r => r.id !== req.id), cleaned]);
+      await updateBackpackUserField<EnrollmentRequest>(req.orgId, 'enrollmentRequests', (list) => [
+        ...list.filter(r => r.id !== req.id && !(r.courseId === req.courseId && r.userId === req.userId)),
+        cleaned
+      ]);
     }
 
-    setEnrollmentRequests(prev => [...prev.filter(r => r.id !== req.id), cleaned]);
+    setEnrollmentRequests(prev => [
+      ...prev.filter(r => r.id !== req.id && !(r.courseId === req.courseId && r.userId === req.userId)),
+      cleaned
+    ]);
+
+    // Send notification to organization / course owner
+    if (req.orgId) {
+      addNotification({
+        userId: req.orgId,
+        title: 'New Admission Application',
+        message: `${req.userName || 'A student'} applied for "${req.courseTitle || 'Course'}"${req.sessionName ? ` (${req.sessionName})` : ''}.`,
+        type: 'enrollment',
+        linkUrl: `/dashboard`
+      });
+    }
   };
 
-  const updateEnrollmentRequest = async (id: string, status?: 'approved' | 'rejected', paymentStatus?: 'unpaid' | 'paid') => {
+  const updateEnrollmentRequest = async (
+    id: string, 
+    status?: 'approved' | 'rejected' | 'cancelled' | 'pending', 
+    paymentStatus?: 'unpaid' | 'paid',
+    rejectionReason?: string
+  ) => {
     const req = enrollmentRequests.find(r => r.id === id);
     const updates: Partial<EnrollmentRequest> = {};
     if (status) updates.status = status;
     if (paymentStatus) updates.paymentStatus = paymentStatus;
+    if (status === 'rejected') {
+      updates.rejectedAt = new Date().toISOString();
+      if (rejectionReason) updates.rejectionReason = rejectionReason;
+      if (req?.sessionId) updates.rejectedSessionId = req.sessionId;
+    }
 
     if (req) {
       if (req.userId) {
@@ -396,13 +456,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         );
       }
 
-      if (status) {
+      if (status && status !== 'cancelled') {
+        const sessionInfo = req.sessionName ? ` for ${req.sessionName}` : '';
         addNotification({
           userId: req.userId,
           title: `Enrollment Application ${status.toUpperCase()}`,
           message: status === 'approved'
-            ? `Your application for ${req.courseTitle || 'the course'} has been accepted!`
-            : `Your application for ${req.courseTitle || 'the course'} has been declined.`,
+            ? `Congratulations! Your admission application for "${req.courseTitle || 'the course'}"${sessionInfo} has been approved.`
+            : `Your application for "${req.courseTitle || 'the course'}"${sessionInfo} was declined.${rejectionReason ? ` Note: ${rejectionReason}` : ' You may reapply in the next admission session.'}`,
           type: 'enrollment',
           linkUrl: `/course/${req.courseId}`
         });
@@ -410,6 +471,162 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
 
     setEnrollmentRequests(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  };
+
+  const cancelEnrollmentRequest = async (id: string) => {
+    const req = enrollmentRequests.find(r => r.id === id);
+    if (!req) return;
+
+    const updates: Partial<EnrollmentRequest> = {
+      status: 'cancelled',
+      cancelledAt: new Date().toISOString()
+    };
+
+    if (req.userId) {
+      await updateBackpackUserField<EnrollmentRequest>(req.userId, 'enrollmentRequests', (list) =>
+        list.map(r => r.id === id ? { ...r, ...updates } : r)
+      );
+    }
+    if (req.orgId && req.orgId !== req.userId) {
+      await updateBackpackUserField<EnrollmentRequest>(req.orgId, 'enrollmentRequests', (list) =>
+        list.map(r => r.id === id ? { ...r, ...updates } : r)
+      );
+    }
+
+    // Add in-app notification
+    addNotification({
+      userId: req.userId,
+      title: 'Course Application Cancelled',
+      message: `Your application for "${req.courseTitle || 'Course'}" has been cancelled.`,
+      type: 'info'
+    });
+
+    setEnrollmentRequests(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  };
+
+  // Admission Session Management
+  const openCourseAdmission = async (courseId: string, sessionId?: string) => {
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+
+    const sessions = course.admissionSessions ? [...course.admissionSessions] : [];
+    let activeSession = sessionId ? sessions.find(s => s.id === sessionId) : sessions.find(s => s.status === 'open');
+
+    // If no active session exists or specified session not open, activate/open it
+    if (!activeSession) {
+      if (sessions.length > 0) {
+        // Open the most recent session
+        sessions[0] = { ...sessions[0], status: 'open' };
+        activeSession = sessions[0];
+      } else {
+        // Create an initial session
+        const currentYear = new Date().getFullYear();
+        const initialSession: AdmissionSession = {
+          id: generateId('ses'),
+          name: `${currentYear}/${currentYear + 1} Academic Session`,
+          status: 'open',
+          startDate: new Date().toISOString().split('T')[0],
+          createdAt: new Date().toISOString()
+        };
+        sessions.push(initialSession);
+        activeSession = initialSession;
+      }
+    } else {
+      // Mark selected session as open
+      const updatedSessions = sessions.map(s => s.id === activeSession!.id ? { ...s, status: 'open' as const } : s);
+      sessions.splice(0, sessions.length, ...updatedSessions);
+    }
+
+    const updates: Partial<Course> = {
+      admissionStatus: 'open',
+      activeSessionId: activeSession.id,
+      activeSessionName: activeSession.name,
+      admissionSessions: sessions
+    };
+
+    await updateCourse(courseId, updates);
+  };
+
+  const closeCourseAdmission = async (courseId: string) => {
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+
+    const sessions = (course.admissionSessions || []).map(s => 
+      s.id === course.activeSessionId ? { ...s, status: 'closed' as const, closedAt: new Date().toISOString() } : s
+    );
+
+    const updates: Partial<Course> = {
+      admissionStatus: 'closed',
+      admissionSessions: sessions
+    };
+
+    await updateCourse(courseId, updates);
+  };
+
+  const createCourseAdmissionSession = async (
+    courseId: string, 
+    sessionData: { 
+      name: string; 
+      startDate?: string; 
+      endDate?: string; 
+      applicationDeadline?: string; 
+      academicYear?: string; 
+      notes?: string; 
+      autoOpen?: boolean; 
+    }
+  ) => {
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+
+    const newSessionId = generateId('ses');
+    const autoOpen = sessionData.autoOpen !== false; // default true
+
+    const newSession: AdmissionSession = {
+      id: newSessionId,
+      name: sessionData.name.trim(),
+      status: autoOpen ? 'open' : 'closed',
+      startDate: sessionData.startDate,
+      endDate: sessionData.endDate,
+      applicationDeadline: sessionData.applicationDeadline,
+      academicYear: sessionData.academicYear,
+      notes: sessionData.notes,
+      createdAt: new Date().toISOString()
+    };
+
+    // If opening new session, close old active sessions
+    let sessions = course.admissionSessions ? [...course.admissionSessions] : [];
+    if (autoOpen) {
+      sessions = sessions.map(s => ({ ...s, status: 'closed' as const, closedAt: s.closedAt || new Date().toISOString() }));
+    }
+    sessions = [newSession, ...sessions];
+
+    const updates: Partial<Course> = {
+      admissionSessions: sessions,
+      ...(autoOpen ? {
+        admissionStatus: 'open',
+        activeSessionId: newSession.id,
+        activeSessionName: newSession.name
+      } : {})
+    };
+
+    await updateCourse(courseId, updates);
+  };
+
+  const updateCourseAdmissionSession = async (courseId: string, sessionId: string, updates: Partial<AdmissionSession>) => {
+    const course = courses.find(c => c.id === courseId);
+    if (!course || !course.admissionSessions) return;
+
+    const sessions = course.admissionSessions.map(s => s.id === sessionId ? { ...s, ...updates } : s);
+    const updatedCourseData: Partial<Course> = { admissionSessions: sessions };
+
+    if (updates.name && course.activeSessionId === sessionId) {
+      updatedCourseData.activeSessionName = updates.name;
+    }
+    if (updates.status && course.activeSessionId === sessionId) {
+      updatedCourseData.admissionStatus = updates.status;
+    }
+
+    await updateCourse(courseId, updatedCourseData);
   };
 
   // Org Join Requests (stored in backpack/{userId}.user.orgJoinRequests & org's backpack)
@@ -613,7 +830,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AppContext.Provider value={{
       organizations, courses, enrollmentRequests, orgJoinRequests, orgMembers, userProgress, materials, attendanceRecords, assessments, submissions, scheduleEvents, notifications,
-      addOrganization, updateOrganization, deleteOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent, deleteScheduleEvent, addNotification, markNotificationRead, markAllNotificationsRead, clearNotifications
+      addOrganization, updateOrganization, deleteOrganization, addCourse, updateCourse, addEnrollmentRequest, updateEnrollmentRequest, cancelEnrollmentRequest, openCourseAdmission, closeCourseAdmission, createCourseAdmissionSession, updateCourseAdmissionSession, addOrgJoinRequest, updateOrgJoinRequest, addOrgMember, updateOrgMember, deleteOrgMember, updateProgress, addMaterial, addAttendanceRecord, sendMessage, addAssessment, addSubmission, updateSubmissionScore, addScheduleEvent, updateScheduleEvent, deleteScheduleEvent, addNotification, markNotificationRead, markAllNotificationsRead, clearNotifications
     }}>
       {children}
     </AppContext.Provider>

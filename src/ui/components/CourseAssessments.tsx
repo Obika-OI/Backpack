@@ -5,6 +5,7 @@ import { Assessment, Submission } from '../../types';
 import { Award, Plus, Paperclip, X } from 'lucide-react';
 import { ProctoringSession } from './ProctoringSession';
 import { FileUpload } from './FileUpload';
+import { generateId } from '../../lib/id';
 
 export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, isStudent: boolean }) => {
     const { assessments, submissions, addAssessment, addSubmission, updateSubmissionScore, orgMembers } = useAppContext();
@@ -30,7 +31,7 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
     const handleCreateAssessment = async (e: React.FormEvent) => {
         e.preventDefault();
         const newAssessment: Assessment = {
-            id: `ass_${Math.random().toString(36).substring(2, 15)}`,
+            id: generateId('ass'),
             courseId,
             title,
             type,
@@ -48,7 +49,7 @@ export const CourseAssessments = ({ courseId, isStudent }: { courseId: string, i
     const handleSubmitAssessment = async (assessmentId: string) => {
         if (!currentUser || (!submissionContent.trim() && !submissionFileUrl)) return;
         const sub: Submission = {
-            id: `sub_${Math.random().toString(36).substring(2, 15)}`,
+            id: generateId('sub'),
             assessmentId,
             userId: currentUser.id,
             courseId,

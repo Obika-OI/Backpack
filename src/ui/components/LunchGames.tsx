@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Heart, Sparkles, Brain, Trophy, RotateCcw, Check, Smile, Rocket, Play, Volume2, VolumeX, Gift, ShieldCheck, Coins, Zap, Eye, Ticket, Star, Coffee } from "lucide-react";
+import { BlueBackpack3DIcon } from "./BlueBackpack3DIcon";
 
 interface Card {
   id: number;
@@ -612,7 +613,9 @@ export const LunchGames = () => {
                   {card.isFlipped || card.isMatched ? (
                     card.icon
                   ) : (
-                    <Backpack className="w-8 h-8 text-indigo-600 dark:text-indigo-400 pointer-events-none drop-shadow-sm" />
+                    <div className="flex items-center justify-center p-1">
+                      <BlueBackpack3DIcon className="w-10 h-10 sm:w-12 sm:h-12 drop-shadow-md pointer-events-none select-none transition-transform duration-200 group-hover:scale-110" />
+                    </div>
                   )}
                 </button>
               ))}

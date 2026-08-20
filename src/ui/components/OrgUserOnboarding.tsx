@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
 import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, X, User } from "lucide-react";
-import { OrgMember, User as AppUser } from "../../types";
+import { OrgMember, User as AppUser, Role } from "../../types";
 import { db } from "../../lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 

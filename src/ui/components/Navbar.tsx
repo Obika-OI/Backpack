@@ -3,9 +3,10 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
-import { Briefcase, GraduationCap, LogOut, Moon, Sun, Menu, X, Bell, Video, CheckCheck, Trash2, Send, ShieldCheck, AlertCircle, Rocket, Backpack } from "lucide-react";
+import { Briefcase, GraduationCap, LogOut, Moon, Sun, Menu, X, Bell, Video, CheckCheck, Trash2, Send, ShieldCheck, AlertCircle, Rocket } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { getNotificationPermission, requestPushPermission, sendPushNotification } from "../../lib/pushNotifications";
+import { BlueBackpack3DIcon } from "./BlueBackpack3DIcon";
 
 export const Navbar = () => {
   const { pathname } = useLocation();
@@ -96,16 +97,16 @@ export const Navbar = () => {
   return (
     <nav className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700/60 sticky top-0 z-50 px-4 sm:px-6 py-3.5">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <Link to="/" onClick={closeMenu} className="flex items-center space-x-3.5 group">
-          <div className="flex items-center justify-center bg-transparent transition-transform group-hover:scale-105">
-            <Backpack className="h-10 w-10 text-indigo-600 dark:text-indigo-400" />
+        <Link to="/" onClick={closeMenu} className="flex items-center space-x-3 group">
+          <div className="flex items-center justify-center transition-transform group-hover:scale-105">
+            <BlueBackpack3DIcon className="h-10 w-10 drop-shadow-md" />
           </div>
 
           <div className="flex flex-col leading-tight">
             <span className="text-xl font-extrabold tracking-wide text-slate-900 dark:text-white">
               BACKPACK
             </span>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400 font-bold">
               Education Without Borders
             </span>
           </div>

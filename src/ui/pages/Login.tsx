@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../store/AuthContext';
+import { BlueBackpack3DIcon } from '../components/BlueBackpack3DIcon';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -41,8 +42,8 @@ const Login = () => {
     <div className="max-w-md mx-auto py-12 animate-in fade-in slide-in-from-bottom-4">
       <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex items-center space-x-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center p-1">
-            <Backpack className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center p-1 shadow-sm">
+            <BlueBackpack3DIcon className="w-9 h-9 drop-shadow-sm" />
           </div>
           <div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white">

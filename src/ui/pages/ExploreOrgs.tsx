@@ -8,7 +8,9 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { EnrollmentModal } from "../components/EnrollmentModal";
+import { KnowledgeCityBanner } from "../components/KnowledgeCityBanner";
 import { Course } from "../../types";
+import { generateId } from "../../lib/id";
 
 const ExploreOrgs = () => {
     const { organizations, courses, orgMembers, enrollmentRequests, addEnrollmentRequest, deleteOrganization } = useAppContext();
@@ -64,7 +66,7 @@ const ExploreOrgs = () => {
 
             // Accreditation filter check
             if (onlyAccredited) {
-                if (!org.isAccredited) return false;
+                if (!org?.isAccredited) return false;
             }
 
             // Instructor filter check
@@ -101,13 +103,19 @@ const ExploreOrgs = () => {
         return req?.status;
     };
 
-    const handleEnroll = async (course: Course, paymentMethod?: 'one-time' | 'installment', documents?: Record<string, string>) => {
+    const handleEnroll = async (
+        course: Course, 
+        paymentMethod?: 'one-time' | 'installment', 
+        documents?: Record<string, string>,
+        additionalDocs?: Array<{ id: string; name: string; url: string }>,
+        notes?: string
+    ) => {
         if (!currentUser) {
             navigate('/login');
             return;
         }
         await addEnrollmentRequest({
-            id: `req_${Math.random().toString(36).substring(2, 15)}`,
+            id: generateId('req'),
             userId: currentUser.id,
             userName: currentUser.name,
             orgId: course.orgId,
@@ -115,7 +123,10 @@ const ExploreOrgs = () => {
             courseTitle: course.title,
             status: 'pending',
             paymentMethod,
-            documents
+            documents,
+            additionalDocuments: additionalDocs,
+            studentNotes: notes,
+            appliedAt: new Date().toISOString()
         });
         setEnrollModalCourse(null);
     };
@@ -129,6 +140,11 @@ const ExploreOrgs = () => {
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-12">
+            {/* Knowledge City Marketplace Banner */}
+            {currentUser?.role !== 'organization' && (
+                <KnowledgeCityBanner variant={currentUser?.role === 'instructor' ? 'instructor' : 'student'} />
+            )}
+
             {/* Page Header */}
             <div>
                 <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-2">

@@ -10,7 +10,7 @@ import {
   Building, MapPin, Mail, Phone, Globe, Award, ShieldCheck, 
   BookOpen, Send, GraduationCap, ArrowLeft, Palette, 
   CheckCircle2, ExternalLink, FileText, Search, 
-  DollarSign, Check, X
+  DollarSign, Check, X, RotateCcw, DoorOpen, DoorClosed
 } from "lucide-react";
 
 export interface OrgPublicProfileProps {
@@ -688,13 +688,16 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
               const status = getRequestStatus(course.id);
               const isEnrolling = enrollingCourseId === course.id;
 
+              const isOpen = course.admissionStatus !== 'closed';
+              const isRejected = status === 'rejected';
+
               return (
                 <div 
                   key={course.id}
                   className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 flex flex-col justify-between transition hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 group"
                 >
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       {course.qualificationTitle ? (
                         <span 
                           className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold"
@@ -707,11 +710,25 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Course Track</span>
                       )}
 
-                      {course.paymentTerms === 'installment' && (
-                        <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                          Installments
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                          isOpen
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                            : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                        }`}>
+                          {isOpen ? (
+                            <><DoorOpen className="w-3 h-3 mr-1" /> Admission Open ({course.activeSessionName || 'Current'})</>
+                          ) : (
+                            <><DoorClosed className="w-3 h-3 mr-1" /> Admission Closed</>
+                          )}
                         </span>
-                      )}
+
+                        {course.paymentTerms === 'installment' && (
+                          <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                            Installments
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-500 transition line-clamp-2">
@@ -753,6 +770,30 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                         <span className="inline-flex items-center text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-3 py-2 rounded-xl border border-amber-500/20">
                           Pending Review
                         </span>
+                      ) : isRejected ? (
+                        isOpen ? (
+                          <button
+                            onClick={() => {
+                              if (!currentUser) navigate('/login');
+                              else setEnrollModalCourse(course);
+                            }}
+                            disabled={isEnrolling}
+                            className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-white transition shadow-md hover:opacity-90 active:scale-95 bg-indigo-600"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reapply
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center text-xs font-bold text-red-600 dark:text-red-400 bg-red-500/10 px-3 py-2 rounded-xl border border-red-500/20">
+                            Admissions Closed
+                          </span>
+                        )
+                      ) : !isOpen ? (
+                        <button
+                          disabled
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-800 cursor-not-allowed"
+                        >
+                          <DoorClosed className="w-3.5 h-3.5 mr-1.5" /> Closed
+                        </button>
                       ) : (
                         <button
                           onClick={() => {

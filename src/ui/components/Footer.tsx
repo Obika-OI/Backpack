@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Backpack } from 'lucide-react'; // Replace with 'next/link' if using Next.js
-import { ArrowRight, Globe, Github, Twitter, Linkedin, Heart } from 'lucide-react';
+import { BlueBackpack3DIcon } from './BlueBackpack3DIcon';
+import { ArrowRight, Globe, Share2, Mail, MessageCircle, Heart } from 'lucide-react';
 
 const Footer: React.FC = () => {
     return (
@@ -15,7 +15,7 @@ const Footer: React.FC = () => {
                     {/* Brand Column */}
                     <div className="lg:col-span-2 space-y-4">
                         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold shadow-sm">
-                            <Backpack className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            <BlueBackpack3DIcon className="w-5 h-5 drop-shadow-sm" />
                             <span>Backpack LMS</span>
                         </div>
 
@@ -120,14 +120,17 @@ const Footer: React.FC = () => {
                     </p>
 
                     <div className="flex items-center space-x-4">
-                        <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                            <Twitter className="w-4 h-4" />
+                        <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Global Network">
+                            <Globe className="w-4 h-4" />
                         </a>
-                        <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                            <Linkedin className="w-4 h-4" />
+                        <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Community Chat">
+                            <MessageCircle className="w-4 h-4" />
                         </a>
-                        <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                            <Github className="w-4 h-4" />
+                        <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Contact Backpack">
+                            <Mail className="w-4 h-4" />
+                        </a>
+                        <a href="#" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Share">
+                            <Share2 className="w-4 h-4" />
                         </a>
                     </div>
                 </div>

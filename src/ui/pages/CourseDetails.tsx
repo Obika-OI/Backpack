@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { Book, MessageSquare, FileText, CheckCircle, Send, Upload, Paperclip, Users, Award, Calendar, Video, Info, X, Clock, CreditCard, Rocket } from "lucide-react";
+import { Book, MessageSquare, FileText, CheckCircle, Send, Upload, Paperclip, Users, Award, Calendar, Video, Info, X, Clock, CreditCard, Rocket, Building, DoorOpen, DoorClosed, RotateCcw, Settings2 } from "lucide-react";
 import { LiveKitCall } from "../components/LiveKitCall";
 import { ChatMessage } from "../../types";
 import { LunchGames } from "../components/LunchGames";
@@ -13,6 +13,8 @@ import { CourseCertificate } from "../components/CourseCertificate";
 import { FileUpload } from "../components/FileUpload";
 import { EnrollmentModal } from "../components/EnrollmentModal";
 import { CoursePaymentModal } from "../components/CoursePaymentModal";
+import { AdmissionSessionManagerModal } from "../components/AdmissionSessionManagerModal";
+import { generateId } from "../../lib/id";
 
 const CourseDetails = () => {
     const { courseId } = useParams();
@@ -22,6 +24,7 @@ const CourseDetails = () => {
     const [activeTab, setActiveTab] = useState<'info' | 'modules' | 'materials' | 'chat' | 'lunch' | 'people' | 'assessments' | 'schedule' | 'certificate'>('info');
     const [showEnrollModal, setShowEnrollModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [showSessionModal, setShowSessionModal] = useState(false);
     
     // Chat state
     const [chatMsg, setChatMsg] = useState("");
@@ -64,6 +67,10 @@ const CourseDetails = () => {
 
     const hasAccess = hasStudentAccess || hasInstructorAccess || hasOrgAccess;
     const canStartVideoCall = !isStudent && (hasOrgAccess || hasInstructorAccess || currentUser?.role === 'organization' || currentUser?.role === 'instructor');
+    const canManageSessions = hasOrgAccess || hasInstructorAccess || currentUser?.role === 'organization' || (currentUser?.role === 'instructor' && course?.instructorId === currentUser?.id);
+
+    const isAdmissionOpen = course?.admissionStatus !== 'closed';
+    const isReapplicationCandidate = myEnrollment?.status === 'rejected';
 
     const myOrg = organizations.find(o => o.ownerId === currentUser?.id || o.id === currentUser?.id || o.id === course?.orgId);
     const courseOrg = organizations.find(o => o.id === course?.orgId || o.ownerId === course?.orgId) || myOrg;
@@ -82,7 +89,7 @@ const CourseDetails = () => {
         const roomName = `${organisationName}-${courseTitle}-${timestamp}`;
         const meetingUrl = `https://meet.jit.si/${roomName}`;
         await addScheduleEvent({
-            id: `ev_${Math.random().toString(36).substring(2, 15)}`,
+            id: generateId('ev'),
             courseId,
             title: "Live Class Session",
             date: new Date().toISOString().split('T')[0],
@@ -95,10 +102,15 @@ const CourseDetails = () => {
         setIsCallActiveInApp(true);
     };
 
-    const handleEnrollSubmit = async (paymentMethod: 'one-time' | 'installment', documents?: Record<string, string>) => {
+    const handleEnrollSubmit = async (
+        paymentMethod: 'one-time' | 'installment', 
+        documents?: Record<string, string>,
+        additionalDocs?: Array<{ id: string; name: string; url: string }>,
+        notes?: string
+    ) => {
         if (!currentUser || !course) return;
         await addEnrollmentRequest({
-            id: `req_${Math.random().toString(36).substring(2, 15)}`,
+            id: generateId('req'),
             userId: currentUser.id,
             userName: currentUser.name,
             orgId: course.orgId,
@@ -106,7 +118,10 @@ const CourseDetails = () => {
             courseTitle: course.title,
             status: 'pending',
             paymentMethod,
-            documents
+            documents,
+            additionalDocuments: additionalDocs,
+            studentNotes: notes,
+            appliedAt: new Date().toISOString()
         });
         setShowEnrollModal(false);
     };
@@ -120,54 +135,119 @@ const CourseDetails = () => {
 
     const renderAccessBlocker = () => (
         <div className="max-w-2xl mx-auto py-16 text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                {myEnrollment?.status === 'pending' ? (
-                    <>
-                        <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
-                            <Clock className="w-8 h-8" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Application Under Review</h2>
-                        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
-                            Your application for <strong className="text-slate-900 dark:text-white">{course.title}</strong> has been submitted and is currently being reviewed by the organization. No tuition payment is due until accepted.
-                        </p>
-                        <Link to="/dashboard" className="inline-flex items-center px-6 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-xl font-bold text-sm transition">
-                            Return to Dashboard
-                        </Link>
-                    </>
-                ) : myEnrollment?.status === 'approved' && course.price > 0 && myEnrollment?.paymentStatus !== 'paid' ? (
-                    <>
-                        <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/20">
-                            <CheckCircle className="w-8 h-8" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Application Accepted!</h2>
-                        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
-                            Congratulations! Your application for <strong className="text-slate-900 dark:text-white">{course.title}</strong> has been approved. Please complete your tuition payment below to unlock full classroom access.
-                        </p>
-                        <button
-                            onClick={() => setShowPaymentModal(true)}
-                            className="inline-flex items-center px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-lg shadow-emerald-600/20 text-sm"
-                        >
-                            <CreditCard className="w-4 h-4 mr-2" /> Pay Tuition ({course.currency} {course.price.toLocaleString()})
-                        </button>
-                    </>
-                ) : (
-                    <>
-                        <div className="w-16 h-16 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
-                            <Book className="w-8 h-8" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Application Required</h2>
-                        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
-                            You must submit an application and be accepted before accessing <strong className="text-slate-900 dark:text-white">{course.title}</strong>. No payment is charged today.
-                        </p>
-                        <button
-                            onClick={() => setShowEnrollModal(true)}
-                            className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
-                        >
-                            <Send className="w-4 h-4 mr-2" /> Apply for Course
-                        </button>
-                    </>
-                )}
-
+            {myEnrollment?.status === 'pending' ? (
+                <>
+                    <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/20">
+                        <Clock className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Application Under Review</h2>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+                        Your application for <strong className="text-slate-900 dark:text-white">{course.title}</strong> ({myEnrollment.sessionName || course.activeSessionName || 'Current Session'}) has been submitted and is currently being reviewed by the organization. No tuition payment is due until accepted.
+                    </p>
+                    <Link to="/dashboard" className="inline-flex items-center px-6 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-xl font-bold text-sm transition">
+                        Return to Dashboard
+                    </Link>
+                </>
+            ) : myEnrollment?.status === 'approved' && course.price > 0 && myEnrollment?.paymentStatus !== 'paid' ? (
+                <>
+                    <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/20">
+                        <CheckCircle className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Application Accepted!</h2>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+                        Congratulations! Your application for <strong className="text-slate-900 dark:text-white">{course.title}</strong> has been approved. Please complete your tuition payment below to unlock full classroom access.
+                    </p>
+                    <button
+                        onClick={() => setShowPaymentModal(true)}
+                        className="inline-flex items-center px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition shadow-lg shadow-emerald-600/20 text-sm"
+                    >
+                        <CreditCard className="w-4 h-4 mr-2" /> Pay Tuition ({course.currency} {course.price.toLocaleString()})
+                    </button>
+                </>
+            ) : isReapplicationCandidate ? (
+                <>
+                    {course.admissionStatus === 'closed' ? (
+                        <>
+                            <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-2xl flex items-center justify-center mx-auto border border-red-500/20">
+                                <DoorClosed className="w-8 h-8" />
                             </div>
+                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Admissions Currently Closed</h2>
+                            <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+                                Your application for the previous session was declined. Admissions for <strong className="text-slate-900 dark:text-white">{course.title}</strong> are currently closed. You will be eligible to reapply as soon as the organization opens the next admission session.
+                            </p>
+                            {myEnrollment.rejectionReason && (
+                                <div className="max-w-md mx-auto p-3.5 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900/40 text-xs text-red-800 dark:text-red-300 text-left">
+                                    <span className="font-bold block mb-1">Feedback from Reviewer:</span>
+                                    "{myEnrollment.rejectionReason}"
+                                </div>
+                            )}
+                            <div className="pt-2">
+                                <button
+                                    disabled
+                                    className="inline-flex items-center px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
+                                >
+                                    <DoorClosed className="w-4 h-4 mr-2" /> Admissions Closed (Awaiting Next Intake)
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="w-16 h-16 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
+                                <RotateCcw className="w-8 h-8" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Admissions Open — Reapply Now</h2>
+                            <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+                                A new admission intake (<strong className="text-indigo-600 dark:text-indigo-400">{course.activeSessionName || 'Current Session'}</strong>) is currently open! You can submit a fresh reapplication with updated credentials.
+                            </p>
+                            {myEnrollment.rejectionReason && (
+                                <div className="max-w-md mx-auto p-3.5 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-900/40 text-xs text-amber-800 dark:text-amber-300 text-left">
+                                    <span className="font-bold block mb-1">Previous Session Feedback:</span>
+                                    "{myEnrollment.rejectionReason}"
+                                </div>
+                            )}
+                            <button
+                                onClick={() => setShowEnrollModal(true)}
+                                className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
+                            >
+                                <RotateCcw className="w-4 h-4 mr-2" /> Reapply for Admission ({course.activeSessionName || 'New Session'})
+                            </button>
+                        </>
+                    )}
+                </>
+            ) : course.admissionStatus === 'closed' ? (
+                <>
+                    <div className="w-16 h-16 bg-slate-500/10 text-slate-500 rounded-2xl flex items-center justify-center mx-auto border border-slate-500/20">
+                        <DoorClosed className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Admissions Currently Closed</h2>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+                        The sponsoring organization is not currently accepting new student applications for <strong className="text-slate-900 dark:text-white">{course.title}</strong>. Please check back when the next admission session opens.
+                    </p>
+                    <button
+                        disabled
+                        className="inline-flex items-center px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
+                    >
+                        <DoorClosed className="w-4 h-4 mr-2" /> Admissions Closed
+                    </button>
+                </>
+            ) : (
+                <>
+                    <div className="w-16 h-16 bg-indigo-500/10 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto border border-indigo-500/20">
+                        <Book className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Application Required</h2>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-sm leading-relaxed">
+                        Submit an application for the <strong className="text-indigo-600 dark:text-indigo-400">{course.activeSessionName || 'current intake session'}</strong> of <strong className="text-slate-900 dark:text-white">{course.title}</strong>. No tuition payment is charged today.
+                    </p>
+                    <button
+                        onClick={() => setShowEnrollModal(true)}
+                        className="inline-flex items-center px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-600/20 text-sm"
+                    >
+                        <Send className="w-4 h-4 mr-2" /> Apply for Course ({course.activeSessionName || 'Current Session'})
+                    </button>
+                </>
+            )}
+        </div>
     );
 
 
@@ -195,7 +275,7 @@ const CourseDetails = () => {
             }
         } else {
             newModules.push({
-                id: `mod_${Math.random().toString(36).substring(2, 15)}`,
+                id: generateId('mod'),
                 title: editModuleTitle,
                 content: editModuleContent
             });
@@ -232,7 +312,7 @@ const CourseDetails = () => {
         if ((!chatMsg.trim() && !chatAttachmentUrl) || !currentUser) return;
         
         const newMsg: ChatMessage = {
-            id: `msg_${Math.random().toString(36).substring(2, 15)}`,
+            id: generateId('msg'),
             courseId: course.id,
             senderId: currentUser.id,
             senderName: currentUser.name,
@@ -253,29 +333,60 @@ const CourseDetails = () => {
         <div className="space-y-6 animate-in fade-in">
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    {courseOrg && (
-                        <Link 
-                            to={`/org/${courseOrg.id || course.orgId}`}
-                            className="inline-flex items-center text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline mb-2 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20"
-                        >
-                            <Building className="w-3.5 h-3.5 mr-1" /> {courseOrg.name}
-                        </Link>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {courseOrg && (
+                            <Link 
+                                to={`/org/${courseOrg.id || course.orgId}`}
+                                className="inline-flex items-center text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20"
+                            >
+                                <Building className="w-3.5 h-3.5 mr-1" /> {courseOrg.name}
+                            </Link>
+                        )}
+                        <span className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-lg border ${
+                            isAdmissionOpen 
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
+                                : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                        }`}>
+                            {isAdmissionOpen ? (
+                                <>
+                                    <DoorOpen className="w-3.5 h-3.5 mr-1 text-emerald-500" />
+                                    Admission: Open ({course.activeSessionName || 'Current Session'})
+                                </>
+                            ) : (
+                                <>
+                                    <DoorClosed className="w-3.5 h-3.5 mr-1 text-red-500" />
+                                    Admission: Closed
+                                </>
+                            )}
+                        </span>
+                    </div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{course.title}</h1>
                     <p className="text-slate-500 dark:text-slate-400 max-w-2xl">{course.description}</p>
                 </div>
                 
-                {canStartVideoCall && (
-                    isCallActiveInApp ? (
-                        <div className="flex items-center px-4 py-2 bg-emerald-500/10 text-emerald-400 font-bold rounded-lg border border-emerald-500/20 text-sm whitespace-nowrap">
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse mr-2" /> Live Call Active
-                        </div>
-                    ) : (
-                        <button onClick={handleStartCall} className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition whitespace-nowrap shadow-sm">
-                            <Video className="w-4 h-4 mr-2" /> Start Live Class
+                <div className="flex flex-wrap items-center gap-3">
+                    {canManageSessions && (
+                        <button
+                            onClick={() => setShowSessionModal(true)}
+                            className="flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition text-xs border border-slate-200 dark:border-slate-600 shadow-sm"
+                        >
+                            <Settings2 className="w-4 h-4 mr-1.5 text-indigo-500" />
+                            Manage Admission Sessions
                         </button>
-                    )
-                )}
+                    )}
+
+                    {canStartVideoCall && (
+                        isCallActiveInApp ? (
+                            <div className="flex items-center px-4 py-2 bg-emerald-500/10 text-emerald-400 font-bold rounded-lg border border-emerald-500/20 text-sm whitespace-nowrap">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse mr-2" /> Live Call Active
+                            </div>
+                        ) : (
+                            <button onClick={handleStartCall} className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition whitespace-nowrap shadow-sm">
+                                <Video className="w-4 h-4 mr-2" /> Start Live Class
+                            </button>
+                        )
+                    )}
+                </div>
             </div>
 
             
@@ -664,26 +775,35 @@ const CourseDetails = () => {
                     </>
                 )}
             </div>
-{showEnrollModal && (
-                    <EnrollmentModal
-                        course={course}
-                        onClose={() => setShowEnrollModal(false)}
-                        onEnroll={handleEnrollSubmit}
-                    />
-                )}
+            {showEnrollModal && (
+                <EnrollmentModal
+                    course={course}
+                    isReapplication={isReapplicationCandidate}
+                    previousRequest={myEnrollment}
+                    onClose={() => setShowEnrollModal(false)}
+                    onEnroll={handleEnrollSubmit}
+                />
+            )}
 
-                {showPaymentModal && myEnrollment && (
-                    <CoursePaymentModal
-                        course={course}
-                        request={myEnrollment}
-                        onClose={() => setShowPaymentModal(false)}
-                        onPaymentSuccess={async () => {
-                            await updateEnrollmentRequest(myEnrollment.id, undefined, 'paid');
-                            setShowPaymentModal(false);
-                        }}
-                    />
-                )}
-                    </div>
+            {showPaymentModal && myEnrollment && (
+                <CoursePaymentModal
+                    course={course}
+                    request={myEnrollment}
+                    onClose={() => setShowPaymentModal(false)}
+                    onPaymentSuccess={async () => {
+                        await updateEnrollmentRequest(myEnrollment.id, undefined, 'paid');
+                        setShowPaymentModal(false);
+                    }}
+                />
+            )}
+
+            {showSessionModal && (
+                <AdmissionSessionManagerModal
+                    course={course}
+                    onClose={() => setShowSessionModal(false)}
+                />
+            )}
+        </div>
     );
 };
 
