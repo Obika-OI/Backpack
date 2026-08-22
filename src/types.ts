@@ -1,4 +1,4 @@
-export type Role = 'student' | 'organization' | 'instructor';
+export type Role = 'student' | 'organization' | 'instructor' | 'admin';
 
 export interface PaystackSubaccount {
   subaccount_code: string;
@@ -42,6 +42,20 @@ export interface UserDocument {
   uploadedAt: string;
 }
 
+export interface SpecialNeedsAccommodation {
+  categories?: ('visual' | 'hearing' | 'adhd_dyslexia' | 'mobility' | 'chronic_health' | 'other')[];
+  extraTimeMultiplier?: number; // 1.0 = none, 1.5 = +50%, 2.0 = +100%
+  dyslexiaFont?: boolean;
+  colorFilter?: 'none' | 'soft-yellow' | 'sepia' | 'calm-green' | 'high-contrast-dark' | 'high-contrast-light';
+  textSize?: 'normal' | 'large' | 'xlarge';
+  lineSpacing?: 'normal' | 'relaxed' | 'double';
+  screenReaderAssist?: boolean;
+  readingRuler?: boolean;
+  reducedMotion?: boolean;
+  healthConditionsNotes?: string;
+  emergencyCarePlan?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -53,6 +67,7 @@ export interface User {
   kycVerified?: boolean;
   kycDocumentUrl?: string;
   userDocuments?: UserDocument[];
+  accommodations?: SpecialNeedsAccommodation;
   paystackSubaccount?: PaystackSubaccount;
   createdAt?: string;
 
@@ -194,6 +209,7 @@ export interface EnrollmentRequest {
   additionalDocuments?: Array<{ id: string; name: string; url: string }>;
   requirementAnswers?: Record<string, string>;
   studentNotes?: string;
+  accommodationsRequested?: SpecialNeedsAccommodation;
   requirementFileUrl?: string;
   appliedAt?: string;
   cancelledAt?: string;
@@ -232,11 +248,11 @@ export interface OrgMember {
   userId?: string;
   name: string;
   email: string;
-  role: 'instructor' | 'student';
+  role: 'instructor' | 'student' | 'admin';
   department?: string;
   courseIds?: string[];
   joinedAt: string;
-  status: 'active' | 'invited' | 'pending' | 'graduated';
+  status: 'active' | 'invited' | 'pending' | 'graduated' | 'suspended';
   requiresPayment?: boolean;
   requiresDocuments?: boolean;
   requiredDocNames?: string[];
@@ -248,33 +264,97 @@ export interface ChatMessage {
   courseId: string;
   senderId: string;
   senderName: string;
+  senderRole?: Role;
   text: string;
   timestamp: number;
   fileUrl?: string;
   fileType?: 'image' | 'video' | 'document';
+  fileName?: string;
+}
+
+export interface OrgChatMessage {
+  id: string;
+  orgId: string;
+  senderId: string;
+  senderName: string;
+  senderEmail?: string;
+  senderRole?: Role;
+  recipientId?: string; // If set, 1-on-1 direct message between sender and recipient in org. If null/empty, org lounge public message.
+  recipientName?: string;
+  text: string;
+  timestamp: number;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: 'image' | 'video' | 'document';
+}
+
+export type QuestionType = 'mcq' | 'short_answer' | 'long_answer' | 'project';
+
+export interface AssessmentQuestion {
+  id: string;
+  type: QuestionType;
+  prompt: string;
+  points: number;
+  options?: string[]; // for MCQ
+  correctOptionIndex?: number; // for MCQ auto-mark
+  acceptableAnswers?: string[]; // for Short Answer auto-mark (multiple acceptable variations, case-insensitive)
+  rubricGuidelines?: string; // for Long answer / Project
+  attachmentUrl?: string; // Optional brief or prompt attachment
+  attachmentName?: string;
+  allowFileUpload?: boolean;
+}
+
+export interface QuestionAnswer {
+  questionId: string;
+  type: QuestionType;
+  selectedOptionIndex?: number;
+  textAnswer?: string;
+  fileUrl?: string;
+  fileName?: string;
+  autoScore?: number;
+  manualScore?: number;
+  finalScore?: number;
+  feedback?: string;
+  isAutoMarked?: boolean;
 }
 
 export interface Assessment {
   id: string;
   courseId: string;
   title: string;
+  description?: string;
+  instructions?: string;
   type: 'assignment' | 'test' | 'exam' | 'project';
   maxScore: number;
   dueDate: string;
   isGroup?: boolean;
+  questions?: AssessmentQuestion[];
+  projectBriefUrl?: string;
+  projectBriefName?: string;
+  allowFileUpload?: boolean;
+  timeLimitMinutes?: number;
+  createdAt?: string;
 }
 
 export interface Submission {
   id: string;
   assessmentId: string;
   userId: string;
+  userName?: string;
+  userEmail?: string;
   courseId: string;
   submittedAt: string;
-  content: string;
+  content?: string;
   fileUrl?: string;
+  fileName?: string;
+  answers?: QuestionAnswer[];
+  autoScore?: number;
+  manualScore?: number;
   score?: number;
   feedback?: string;
   status: 'submitted' | 'graded';
+  gradedAt?: string;
+  gradedBy?: string;
 }
 
 export interface ScheduleEvent {
@@ -287,6 +367,9 @@ export interface ScheduleEvent {
   type: 'lecture' | 'meeting' | 'exam';
   meetingUrl?: string; // For the video call
   isActive?: boolean;
+  creatorId?: string;
+  instructorId?: string;
+  orgId?: string;
 }
 
 export interface AppNotification {

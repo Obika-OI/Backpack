@@ -77,17 +77,26 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState(false);
 
-  // Check if current user is the owner of this organization
+  // Check if current user is the owner or admin staff of this organization
   const isOwner = useMemo(() => {
     if (!currentUser) return false;
-    return (
+    const cleanEmail = currentUser.email?.toLowerCase();
+    const isDirectOwner = (
       currentUser.id === orgUserId || 
       currentUser.id === orgData?.ownerId || 
       currentUser.id === orgData?.id ||
       orgUserId === `org_${currentUser.id}` ||
       orgData?.id === `org_${currentUser.id}`
     );
-  }, [currentUser, orgUserId, orgData]);
+    if (isDirectOwner) return true;
+
+    // Check if user is an active Organization Admin staff member
+    return orgMembers.some(
+      m => m.email?.toLowerCase() === cleanEmail &&
+           m.role === 'admin' &&
+           (m.orgId === orgUserId || m.orgId === orgData?.id || m.orgId === `org_${currentUser.id}`)
+    );
+  }, [currentUser, orgUserId, orgData, orgMembers]);
 
   // Real-time synchronization from Firestore backpack/{orgUserId}
   useEffect(() => {
@@ -930,7 +939,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={customMotto}
+                  value={customMotto || ''}
                   onChange={(e) => setCustomMotto(e.target.value)}
                   placeholder="e.g. Excellence in Education, Integrity in Life"
                   className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -944,7 +953,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                 </label>
                 <input
                   type="url"
-                  value={customLogoUrl}
+                  value={customLogoUrl || ''}
                   onChange={(e) => setCustomLogoUrl(e.target.value)}
                   placeholder="https://example.com/crest.png"
                   className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -959,7 +968,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={customPhone}
+                    value={customPhone || ''}
                     onChange={(e) => setCustomPhone(e.target.value)}
                     placeholder="+1 (555) 019-2834"
                     className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -972,7 +981,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={customWebsite}
+                    value={customWebsite || ''}
                     onChange={(e) => setCustomWebsite(e.target.value)}
                     placeholder="https://portal.stjude.edu"
                     className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -987,7 +996,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                 </label>
                 <textarea
                   rows={4}
-                  value={customHighlights}
+                  value={customHighlights || ''}
                   onChange={(e) => setCustomHighlights(e.target.value)}
                   placeholder="Advanced STEM Track Academy&#10;Accredited International Diploma&#10;Global Mentorship & Practical Labs"
                   className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1001,7 +1010,7 @@ export const OrgPublicProfile: React.FC<OrgPublicProfileProps> = ({
                 </label>
                 <textarea
                   rows={3}
-                  value={customAbout}
+                  value={customAbout || ''}
                   onChange={(e) => setCustomAbout(e.target.value)}
                   placeholder="Describe your campus environment, facilities, mentors and vision..."
                   className="w-full px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"

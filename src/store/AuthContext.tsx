@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../lib/firebase';
+import { sanitizeForFirestore } from '../lib/sanitize';
 import {
   onAuthStateChanged,
   User as FirebaseUser,
@@ -189,15 +190,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (updates.academicHighlights !== undefined) updatedPersonalInfo.academicHighlights = updates.academicHighlights;
         if (updates.isDeleted !== undefined) updatedPersonalInfo.isDeleted = updates.isDeleted;
 
-        // Remove undefined keys so Firestore doesn't fail
-        const sanitizedPersonalInfo = Object.fromEntries(
-          Object.entries(updatedPersonalInfo).filter(([, v]) => v !== undefined)
-        );
-
-        const updatedUser = {
+        const updatedUser = sanitizeForFirestore({
           ...userObj,
-          personalInformation: sanitizedPersonalInfo
-        };
+          personalInformation: updatedPersonalInfo
+        });
 
         await updateDoc(docRef, { user: updatedUser });
       }
@@ -211,13 +207,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | null = null;
-    const unsubscribeAuth = onAuthStateChanged(auth, (user: { uid: any; displayName: any; email: string; }) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user: FirebaseUser | null) => {
       setFirebaseUser(user);
       if (user) {
         // Use onSnapshot to continuously sync the user doc
         unsubscribeDoc = onSnapshot(
           doc(db, 'backpack', user.uid),
-          (docSnap: { exists: () => any; data: () => any; }) => {
+          (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               const userObj = Array.isArray(data.user) ? data.user[0] : data.user;
@@ -226,7 +222,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               if (personalInfo) {
                 setCurrentUser({
                   id: user.uid,
-                  name: personalInfo.fullname || personalInfo.name || user.displayName || user.email?.split('@')[0],
+                  name: personalInfo.fullname || personalInfo.name || user.displayName || user.email?.split('@')[0] || 'User',
                   email: personalInfo.email || user.email || '',
                   role: personalInfo.role || 'student',
                   createdAt: personalInfo.createdAt || new Date().toISOString(),
@@ -260,7 +256,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
             setLoading(false);
           },
-          (error: any) => {
+          (error: Error) => {
             console.error("Error fetching user data", error);
             setLoading(false);
           }

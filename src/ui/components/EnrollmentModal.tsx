@@ -1,6 +1,22 @@
 import React, { useState } from 'react';
-import { Course } from '../../types';
-import { X, Send, CheckCircle, FileText, Award, ShieldCheck, Plus, Trash2, Paperclip, MessageSquare, AlertCircle } from 'lucide-react';
+import { Course, EnrollmentRequest, SpecialNeedsAccommodation } from '../../types';
+import { 
+    X, 
+    Send, 
+    CheckCircle, 
+    FileText, 
+    Award, 
+    ShieldCheck, 
+    Plus, 
+    Trash2, 
+    Paperclip, 
+    MessageSquare, 
+    AlertCircle,
+    FolderCheck,
+    HeartHandshake,
+    Sparkles,
+    Clock
+} from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { FileUpload } from './FileUpload';
 import { generateId } from '../../lib/id';
@@ -20,7 +36,8 @@ interface EnrollmentModalProps {
         additionalDocs?: Array<{ id: string; name: string; url: string }>,
         studentNotes?: string,
         sessionId?: string,
-        sessionName?: string
+        sessionName?: string,
+        accommodationsRequested?: SpecialNeedsAccommodation
     ) => void;
     isReapplication?: boolean;
     previousRequest?: EnrollmentRequest | null;
@@ -34,6 +51,7 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     previousRequest = null,
 }) => {
     const { currentUser } = useAuth();
+
     const activeSessionName = course.activeSessionName || (course.admissionSessions && course.admissionSessions.find(s => s.status === 'open')?.name) || 'Current Session';
     const activeSessionId = course.activeSessionId || (course.admissionSessions && course.admissionSessions.find(s => s.status === 'open')?.id);
 
@@ -51,6 +69,21 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
     const [studentNotes, setStudentNotes] = useState(
         previousRequest?.studentNotes || ''
     );
+    
+    // Special Needs & Health Accommodations Request State
+    const [requestAccommodations, setRequestAccommodations] = useState<boolean>(
+        Boolean(previousRequest?.accommodationsRequested || currentUser?.accommodations?.hasSpecialNeeds)
+    );
+    const [accommodationDetails, setAccommodationDetails] = useState<SpecialNeedsAccommodation>({
+        hasSpecialNeeds: true,
+        extraExamTimeMinutes: previousRequest?.accommodationsRequested?.extraExamTimeMinutes || currentUser?.accommodations?.extraExamTimeMinutes || 30,
+        enableScreenReaderMode: previousRequest?.accommodationsRequested?.enableScreenReaderMode ?? currentUser?.accommodations?.enableScreenReaderMode ?? false,
+        enableDyslexiaFont: previousRequest?.accommodationsRequested?.enableDyslexiaFont ?? currentUser?.accommodations?.enableDyslexiaFont ?? false,
+        highContrast: previousRequest?.accommodationsRequested?.highContrast ?? currentUser?.accommodations?.highContrast ?? false,
+        specialNotes: previousRequest?.accommodationsRequested?.specialNotes || currentUser?.accommodations?.specialNotes || '',
+        verifiedByInstitution: false
+    });
+
     const [loading, setLoading] = useState(false);
 
     if (!currentUser) return null;
@@ -67,9 +100,41 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
         ? course.requiredDocuments.some(doc => !documents[doc])
         : false;
 
-    const handleSubmitApplication = () => {
-        setLoading(true);
-        onEnroll(paymentMethod, documents, additionalDocs, studentNotes, activeSessionId, activeSessionName);
+    // Aggregate all available user documents from profile
+    const availableProfileDocs: Array<{ name: string; url: string; source: string }> = [];
+    if (currentUser.cvUrl) {
+        availableProfileDocs.push({ name: "Profile CV / Resume", url: currentUser.cvUrl, source: "Profile CV" });
+    }
+    if (currentUser.kycDocumentUrl) {
+        availableProfileDocs.push({ name: "Verified ID / Passport Document", url: currentUser.kycDocumentUrl, source: "Profile ID / KYC" });
+    }
+    if (currentUser.userDocuments && currentUser.userDocuments.length > 0) {
+        currentUser.userDocuments.forEach(doc => {
+            availableProfileDocs.push({ name: doc.title, url: doc.url, source: `Profile Doc (${doc.type || 'Upload'})` });
+        });
+    }
+
+    const handleAutoFillFromProfile = () => {
+        const updatedDocs = { ...documents };
+        effectiveRequiredDocs.forEach(reqDocName => {
+            const lower = reqDocName.toLowerCase();
+            if (!updatedDocs[reqDocName]) {
+                if ((lower.includes('cv') || lower.includes('resume')) && currentUser.cvUrl) {
+                    updatedDocs[reqDocName] = currentUser.cvUrl;
+                } else if ((lower.includes('id') || lower.includes('passport') || lower.includes('identity')) && currentUser.kycDocumentUrl) {
+                    updatedDocs[reqDocName] = currentUser.kycDocumentUrl;
+                } else if (currentUser.userDocuments && currentUser.userDocuments.length > 0) {
+                    const match = currentUser.userDocuments.find(d => 
+                        lower.includes(d.title.toLowerCase()) || 
+                        d.title.toLowerCase().includes(lower)
+                    );
+                    if (match) {
+                        updatedDocs[reqDocName] = match.url;
+                    }
+                }
+            }
+        });
+        setDocuments(updatedDocs);
     };
 
     const attachProfileCv = (docName: string) => {
@@ -96,9 +161,22 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
         setAdditionalDocs(prev => prev.filter(d => d.id !== id));
     };
 
+    const handleSubmitApplication = () => {
+        setLoading(true);
+        onEnroll(
+            paymentMethod, 
+            documents, 
+            additionalDocs, 
+            studentNotes, 
+            activeSessionId, 
+            activeSessionName,
+            requestAccommodations ? accommodationDetails : undefined
+        );
+    };
+
     return (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl w-full max-w-xl overflow-hidden flex flex-col max-h-[92vh] shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh] shadow-2xl animate-in zoom-in-95 duration-200">
                 {/* Modal Header */}
                 <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                     <div>
@@ -117,8 +195,8 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                             {isReapplication
-                                ? `Submitting a new admission application for ${activeSessionName}. You can update your attachments and statement below.`
-                                : 'Submit your required documents and application for review by the organization.'}
+                                ? `Submitting a new admission application for ${activeSessionName}. You can update your attachments, accommodations, and statement below.`
+                                : 'Submit your application and credentials for evaluation by the organization.'}
                         </p>
                     </div>
                     <button
@@ -143,14 +221,46 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                         </div>
                     )}
 
-                    {/* Notice box */}
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-700 dark:text-slate-300 flex items-start space-x-3">
-                        <ShieldCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                    {/* Notice box: No upfront tuition */}
+                    <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl text-xs text-emerald-950 dark:text-emerald-200 flex items-start space-x-3">
+                        <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                         <div>
-                            <span className="font-bold block text-slate-900 dark:text-white">Application Review & Admission Process</span>
-                            No tuition fee is charged now. The admissions team at the partner organization will evaluate your submitted documents for <span className="font-medium text-indigo-600 dark:text-indigo-400">{activeSessionName}</span> and approve your enrollment.
+                            <span className="font-bold block text-emerald-900 dark:text-emerald-100">Zero Upfront Tuition Charged During Application</span>
+                            No tuition payment is required right now. The partner organization will evaluate your submission for <span className="font-semibold text-emerald-700 dark:text-emerald-300">{activeSessionName}</span>. Tuition will be due only after your admission is approved!
                         </div>
                     </div>
+
+                    {/* Profile Documents Quick Reuse Box */}
+                    {availableProfileDocs.length > 0 && (
+                        <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                    <FolderCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                    <h4 className="font-bold text-xs text-indigo-950 dark:text-indigo-200">
+                                        Use Documents Already Uploaded to Your Profile ({availableProfileDocs.length})
+                                    </h4>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleAutoFillFromProfile}
+                                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow-sm shadow-indigo-600/20"
+                                >
+                                    Auto-Fill All Matching Docs
+                                </button>
+                            </div>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                You can attach your existing profile CV, certificates, or ID documents below without having to upload them again.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {availableProfileDocs.map((pDoc, idx) => (
+                                    <span key={idx} className="inline-flex items-center px-2.5 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg text-[11px] font-medium border border-indigo-200 dark:border-indigo-800/60">
+                                        <Award className="w-3 h-3 mr-1 text-indigo-500" />
+                                        {pDoc.name}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Admission Guidelines */}
                     {course.requirements && (
@@ -175,7 +285,7 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                                     Application Documents
                                 </h4>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                    Upload official documents for the organization's review board.
+                                    Upload official documents or select from your saved profile credentials.
                                 </p>
                             </div>
                         </div>
@@ -202,32 +312,62 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                                         )}
                                     </div>
 
-                                    {/* Quick attach from profile */}
-                                    <div className="flex flex-wrap gap-2 text-[11px]">
-                                        {currentUser.cvUrl && (docName.toLowerCase().includes('cv') || docName.toLowerCase().includes('resume')) && (
-                                            <button
-                                                type="button"
-                                                onClick={() => attachProfileCv(docName)}
-                                                className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium rounded-lg hover:bg-indigo-100 transition flex items-center"
-                                            >
-                                                <FileText className="w-3 h-3 mr-1" /> Use Profile CV
-                                            </button>
-                                        )}
+                                    {/* Quick attach from profile options */}
+                                    {availableProfileDocs.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                                Select From Your Profile:
+                                            </span>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {currentUser.cvUrl && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => attachProfileCv(docName)}
+                                                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition flex items-center border ${
+                                                            documents[docName] === currentUser.cvUrl
+                                                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                                                : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+                                                        }`}
+                                                    >
+                                                        <FileText className="w-3 h-3 mr-1" /> Use Profile CV
+                                                    </button>
+                                                )}
 
-                                        {currentUser.userDocuments && currentUser.userDocuments.map(saved => (
-                                            <button
-                                                key={saved.id}
-                                                type="button"
-                                                onClick={() => attachSavedDoc(docName, saved.url)}
-                                                className="px-2.5 py-1 bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium rounded-lg hover:bg-amber-100 transition flex items-center"
-                                            >
-                                                <Award className="w-3 h-3 mr-1" /> Use "{saved.title}"
-                                            </button>
-                                        ))}
-                                    </div>
+                                                {currentUser.kycDocumentUrl && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => attachSavedDoc(docName, currentUser.kycDocumentUrl!)}
+                                                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition flex items-center border ${
+                                                            documents[docName] === currentUser.kycDocumentUrl
+                                                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                                                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+                                                        }`}
+                                                    >
+                                                        <ShieldCheck className="w-3 h-3 mr-1" /> Use Profile ID
+                                                    </button>
+                                                )}
 
+                                                {currentUser.userDocuments && currentUser.userDocuments.map(saved => (
+                                                    <button
+                                                        key={saved.id}
+                                                        type="button"
+                                                        onClick={() => attachSavedDoc(docName, saved.url)}
+                                                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition flex items-center border ${
+                                                            documents[docName] === saved.url
+                                                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100'
+                                                        }`}
+                                                    >
+                                                        <Award className="w-3 h-3 mr-1" /> Use "{saved.title}"
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Direct File Upload Option */}
                                     <FileUpload
-                                        label={`Upload file for ${docName}`}
+                                        label={`Or upload a new file for ${docName}`}
                                         onUpload={url => setDocuments(prev => ({ ...prev, [docName]: url }))}
                                     />
                                 </div>
@@ -268,7 +408,7 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <input
                                     type="text"
-                                    placeholder="Document Title (e.g. Portfolio)"
+                                    placeholder="Document Title (e.g. Recommendation Letter)"
                                     value={newDocName}
                                     onChange={e => setNewDocName(e.target.value)}
                                     className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -296,6 +436,111 @@ export const EnrollmentModal: React.FC<EnrollmentModalProps> = ({
                                 </button>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Special Needs & Health Accommodations Request Section */}
+                    <div className="p-4 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/40 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <HeartHandshake className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                <h4 className="font-bold text-xs text-purple-950 dark:text-purple-200">
+                                    Special Needs & Health Accommodations (Optional)
+                                </h4>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setRequestAccommodations(!requestAccommodations);
+                                    setShowAccommodationDetails(true);
+                                }}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition border ${
+                                    requestAccommodations
+                                        ? 'bg-purple-600 text-white border-purple-600'
+                                        : 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800 hover:bg-purple-100'
+                                }`}
+                            >
+                                {requestAccommodations ? '✓ Accommodations Requested' : '+ Request Accommodations'}
+                            </button>
+                        </div>
+
+                        <p className="text-[11px] text-purple-900/80 dark:text-purple-300 leading-relaxed">
+                            Notify instructors and administrators of any disabling health conditions, exam extra time needs, or assistive technology requirements.
+                        </p>
+
+                        {requestAccommodations && (
+                            <div className="pt-2 space-y-3 border-t border-purple-200/60 dark:border-purple-900/40 animate-in fade-in">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-purple-900/50 space-y-1.5">
+                                        <label className="font-bold text-slate-900 dark:text-white flex items-center">
+                                            <Clock className="w-3.5 h-3.5 mr-1.5 text-purple-500" />
+                                            Extra Exam Time (Minutes)
+                                        </label>
+                                        <select
+                                            value={accommodationDetails.extraExamTimeMinutes || 30}
+                                            onChange={e => setAccommodationDetails(prev => ({
+                                                ...prev,
+                                                extraExamTimeMinutes: Number(e.target.value)
+                                            }))}
+                                            className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                                        >
+                                            <option value={15}>+15 Minutes (1.25x)</option>
+                                            <option value={30}>+30 Minutes (1.5x Standard)</option>
+                                            <option value={45}>+45 Minutes (1.75x)</option>
+                                            <option value={60}>+60 Minutes (Double Time 2.0x)</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-purple-900/50 space-y-2">
+                                        <label className="font-bold text-slate-900 dark:text-white flex items-center">
+                                            <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-500" />
+                                            Assistive Learning Features
+                                        </label>
+                                        <div className="space-y-1.5">
+                                            <label className="flex items-center space-x-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={accommodationDetails.enableScreenReaderMode || false}
+                                                    onChange={e => setAccommodationDetails(prev => ({
+                                                        ...prev,
+                                                        enableScreenReaderMode: e.target.checked
+                                                    }))}
+                                                    className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                                                />
+                                                <span className="text-[11px] text-slate-700 dark:text-slate-300">Screen Reader / Audio Assistance</span>
+                                            </label>
+                                            <label className="flex items-center space-x-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={accommodationDetails.enableDyslexiaFont || false}
+                                                    onChange={e => setAccommodationDetails(prev => ({
+                                                        ...prev,
+                                                        enableDyslexiaFont: e.target.checked
+                                                    }))}
+                                                    className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                                                />
+                                                <span className="text-[11px] text-slate-700 dark:text-slate-300">Dyslexia-Friendly Typography</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="font-bold text-xs text-slate-900 dark:text-white">
+                                        Specific Health Notes or Special Requirements:
+                                    </label>
+                                    <textarea
+                                        rows={2}
+                                        placeholder="Describe any physical, cognitive, visual, or auditory accommodations requested..."
+                                        value={accommodationDetails.specialNotes || ''}
+                                        onChange={e => setAccommodationDetails(prev => ({
+                                            ...prev,
+                                            specialNotes: e.target.value
+                                        }))}
+                                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Student Statement / Notes to Admissions */}

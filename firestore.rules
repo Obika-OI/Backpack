@@ -38,6 +38,17 @@ service cloud.firestore {
     }
 
     // ============================================================================
+    // Discussions Collection Rules (Real-time course chat and message attachments)
+    // ============================================================================
+    match /discussions/{msgId} {
+      allow read, create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderId || 
+        request.auth.uid == resource.data.orgId
+      );
+    }
+
+    // ============================================================================
     // Catch-all fallback
     // ============================================================================
     // By default, lock down everything else completely to prevent unintended data exposure.

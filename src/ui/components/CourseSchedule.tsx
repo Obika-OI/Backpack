@@ -127,19 +127,41 @@ export const CourseSchedule = ({ courseId, isStudent }: { courseId: string, isSt
                                                 <div className="flex items-center space-x-2">
                                                     <h4 className="font-bold text-lg text-slate-900 dark:text-white">{evt.title}</h4>
                                                     <span className="px-2 py-0.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] uppercase font-bold rounded-full border border-slate-200 dark:border-slate-700">{evt.type}</span>
+                                                    {evt.isActive ? (
+                                                        <span className="px-2.5 py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/30 text-xs font-black rounded-full flex items-center animate-pulse">
+                                                            <span className="w-2 h-2 rounded-full bg-red-500 mr-1.5 animate-ping" /> LIVE NOW
+                                                        </span>
+                                                    ) : (evt as { status?: string }).status === 'completed' ? (
+                                                        <span className="px-2.5 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-full">
+                                                            Class Ended
+                                                        </span>
+                                                    ) : null}
                                                 </div>
                                                 {!isStudent && (
-                                                    <button 
-                                                        onClick={() => {
-                                                            if (confirm("Delete this event from the timetable?")) {
-                                                                deleteScheduleEvent(evt.id);
-                                                            }
-                                                        }}
-                                                        title="Delete event"
-                                                        className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                                    <div className="flex items-center space-x-2">
+                                                        {evt.isActive && (
+                                                            <button
+                                                                onClick={async () => {
+                                                                    await updateScheduleEvent(evt.id, { isActive: false, status: 'completed' });
+                                                                    if (activeLiveKitRoom === getEventRoomName(evt)) setActiveLiveKitRoom(null);
+                                                                }}
+                                                                className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition shadow-sm"
+                                                            >
+                                                                End Live Class
+                                                            </button>
+                                                        )}
+                                                        <button 
+                                                            onClick={() => {
+                                                                if (confirm("Delete this event from the timetable?")) {
+                                                                    deleteScheduleEvent(evt.id);
+                                                                }
+                                                            }}
+                                                            title="Delete event"
+                                                            className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>

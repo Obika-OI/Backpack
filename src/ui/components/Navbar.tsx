@@ -3,24 +3,34 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/AuthContext";
 import { useAppContext } from "../../store/AppContext";
-import { Briefcase, GraduationCap, LogOut, Moon, Sun, Menu, X, Bell, Video, CheckCheck, Trash2, Send, ShieldCheck, AlertCircle, Rocket } from "lucide-react";
+import { Briefcase, GraduationCap, LogOut, Moon, Sun, Menu, X, Bell, Video, CheckCheck, Trash2, Send, ShieldCheck, AlertCircle, Rocket, HeartHandshake, Shield } from "lucide-react";
 import { useTheme } from "../../store/ThemeContext";
 import { getNotificationPermission, requestPushPermission, sendPushNotification } from "../../lib/pushNotifications";
 import { BlueBackpack3DIcon } from "./BlueBackpack3DIcon";
+import { AccommodationToolsModal } from "./AccommodationToolsModal";
+import { AppointAdminModal } from "./AppointAdminModal";
 
 export const Navbar = () => {
   const { pathname } = useLocation();
   const { currentUser, logout } = useAuth();
-  const { scheduleEvents, courses, notifications, orgMembers, organizations, markNotificationRead, markAllNotificationsRead, clearNotifications, addNotification } = useAppContext();
+  const { scheduleEvents, updateScheduleEvent, courses, notifications, orgMembers, organizations, markNotificationRead, markAllNotificationsRead, clearNotifications, addNotification } = useAppContext();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [accommodationModalOpen, setAccommodationModalOpen] = useState(false);
+  const [appointAdminModalOpen, setAppointAdminModalOpen] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(getNotificationPermission());
   const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
   const activeLiveCalls = scheduleEvents.filter(e => e.isActive);
+
+  const isOrgAdmin = !!currentUser && (
+    currentUser.role === 'organization' ||
+    currentUser.role === 'admin' ||
+    orgMembers.some(m => m.email?.toLowerCase() === currentUser.email?.toLowerCase() && m.role === 'admin')
+  );
 
   const studentInvites = currentUser?.role === 'student'
     ? orgMembers.filter(m => m.email?.toLowerCase() === currentUser?.email?.toLowerCase() && m.status === 'invited')
@@ -43,10 +53,25 @@ export const Navbar = () => {
   });
 
   const rawUserNotifications = notifications.filter(n => !n.userId || n.userId === currentUser?.id);
-  const userNotifications = [
+  const combinedNotifications = [
     ...inviteNotifications.filter(invNotif => !rawUserNotifications.some(n => n.id === invNotif.id)),
     ...rawUserNotifications
   ];
+
+  // Initiators should not receive live class notifications for their own sessions
+  const userNotifications = combinedNotifications.filter(n => {
+    if (n.type === 'live_class') {
+      const evt = scheduleEvents.find(e => n.linkUrl?.includes(e.courseId));
+      const isInitiator = currentUser?.id && (
+        evt?.instructorId === currentUser.id ||
+        evt?.creatorId === currentUser.id ||
+        evt?.orgId === currentUser.id ||
+        currentUser.role === 'organization'
+      );
+      if (isInitiator) return false;
+    }
+    return true;
+  });
 
   const unreadCount = userNotifications.filter(n => !n.read).length + activeLiveCalls.length;
 
@@ -138,8 +163,18 @@ export const Navbar = () => {
           </div>
         </Link>
 
-        {/* Global Right Controls (Theme, Notifications, Hamburger) */}
-        <div className="flex items-center space-x-2 sm:space-x-4">
+        {/* Global Right Controls (Theme, Accommodations, Notifications, Hamburger) */}
+        <div className="flex items-center space-x-1.5 sm:space-x-3">
+          {/* Special Needs & Accessibility Accommodations Tools */}
+          <button
+            onClick={() => setAccommodationModalOpen(true)}
+            className="p-2 rounded-full hover:bg-purple-100 dark:hover:bg-purple-950/50 text-purple-600 dark:text-purple-400 transition-colors"
+            title="Special Needs & Accessibility Accommodation Tools"
+            aria-label="Accommodation Tools"
+          >
+            <HeartHandshake className="w-5 h-5" />
+          </button>
+
           <button
             onClick={toggleTheme}
             className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
@@ -254,6 +289,12 @@ export const Navbar = () => {
                       </div>
                       {activeLiveCalls.map(evt => {
                         const course = courses.find(c => c.id === evt.courseId);
+                        const isInitiator = currentUser?.id && (
+                          evt.instructorId === currentUser.id ||
+                          evt.creatorId === currentUser.id ||
+                          evt.orgId === currentUser.id ||
+                          currentUser.role === 'organization'
+                        );
                         return (
                           <div key={evt.id} className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col gap-2">
                             <div>
@@ -265,16 +306,28 @@ export const Navbar = () => {
                                 {course?.title || 'Classroom Session'}
                               </p>
                             </div>
-                            <button
-                              onClick={() => {
-                                setNotificationsOpen(false);
-                                navigate(`/course/${evt.courseId}`);
-                              }}
-                              className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1.5"
-                            >
-                              <Video className="w-3.5 h-3.5" />
-                              <span>Join Live Class</span>
-                            </button>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  setNotificationsOpen(false);
+                                  navigate(`/course/${evt.courseId}`);
+                                }}
+                                className="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1.5"
+                              >
+                                <Video className="w-3.5 h-3.5" />
+                                <span>Join Live Class</span>
+                              </button>
+                              {isInitiator && (
+                                <button
+                                  onClick={async () => {
+                                    await updateScheduleEvent(evt.id, { isActive: false });
+                                  }}
+                                  className="py-1.5 px-3 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                                >
+                                  End Class
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -359,17 +412,27 @@ export const Navbar = () => {
 
             <Link to="/lunch" className={`${getLinkStyle("/lunch")} flex items-center space-x-1`}>
               <Rocket className="w-3.5 h-3.5" />
-              <span>Launch Box</span>
+              <span>Lunch Box</span>
             </Link>
 
-            {currentUser && currentUser.role === 'organization' && (
-              <Link
-                to="/onboard"
-                className="px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg text-xs font-bold transition duration-200 flex items-center border border-indigo-200 dark:border-indigo-800/60 shadow-sm"
-              >
-                <Briefcase className="w-3.5 h-3.5 mr-1.5 text-indigo-600 dark:text-indigo-400" />
-                <span>Organization Setup</span>
-              </Link>
+            {isOrgAdmin && (
+              <div className="flex items-center space-x-2">
+                <Link
+                  to="/onboard"
+                  className="px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg text-xs font-bold transition duration-200 flex items-center border border-indigo-200 dark:border-indigo-800/60 shadow-sm"
+                >
+                  <Briefcase className="w-3.5 h-3.5 mr-1.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Organization Portal</span>
+                </Link>
+                <button
+                  onClick={() => setAppointAdminModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition duration-200 flex items-center shadow-sm cursor-pointer"
+                  title="Appoint Organization Admin"
+                >
+                  <Shield className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Appoint Admin</span>
+                </button>
+              </div>
             )}
 
             {currentUser ? (
@@ -427,13 +490,36 @@ export const Navbar = () => {
 
           <Link to="/lunch" onClick={closeMenu} className={`${getMobileLinkStyle("/lunch")} flex items-center space-x-2`}>
             <Rocket className="w-4 h-4 text-indigo-500" />
-            <span>Launch Box</span>
+            <span>Lunch Box</span>
           </Link>
 
-          {currentUser && currentUser.role === 'organization' && (
-            <Link to="/onboard" onClick={closeMenu} className={getMobileLinkStyle("/onboard")}>
-              Organization Setup
-            </Link>
+          <button
+            onClick={() => {
+              closeMenu();
+              setAccommodationModalOpen(true);
+            }}
+            className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center space-x-2"
+          >
+            <HeartHandshake className="w-4 h-4" />
+            <span>Special Needs & Accommodations</span>
+          </button>
+
+          {isOrgAdmin && (
+            <>
+              <Link to="/onboard" onClick={closeMenu} className={getMobileLinkStyle("/onboard")}>
+                Organization Portal
+              </Link>
+              <button
+                onClick={() => {
+                  closeMenu();
+                  setAppointAdminModalOpen(true);
+                }}
+                className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 flex items-center space-x-2"
+              >
+                <Shield className="w-4 h-4 text-indigo-500" />
+                <span>Appoint Admin Staff</span>
+              </button>
+            </>
           )}
 
           <div className="pt-4 border-t border-slate-200 dark:border-slate-700/60">
@@ -459,6 +545,17 @@ export const Navbar = () => {
           </div>
         </div>
       )}
+
+      {/* Global Accommodation Tools Modal */}
+      {accommodationModalOpen && (
+        <AccommodationToolsModal onClose={() => setAccommodationModalOpen(false)} />
+      )}
+
+      {/* Appoint Organization Admin Modal */}
+      <AppointAdminModal
+        isOpen={appointAdminModalOpen}
+        onClose={() => setAppointAdminModalOpen(false)}
+      />
     </nav>
   );
 };

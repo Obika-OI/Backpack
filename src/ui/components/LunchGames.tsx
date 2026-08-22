@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useCallback } from "react";
-import { Heart, Sparkles, Brain, Trophy, RotateCcw, Check, Smile, Rocket, Play, Volume2, VolumeX, Gift, ShieldCheck, Coins, Zap, Eye, Ticket, Star, Coffee } from "lucide-react";
+import { Heart, Sparkles, Brain, Trophy, RotateCcw, Check, Smile, Rocket, Play, Volume2, VolumeX, Gift, ShieldCheck, Coins, Zap, Eye, Ticket, Star, Coffee, MessageSquare } from "lucide-react";
 import { BlueBackpack3DIcon } from "./BlueBackpack3DIcon";
+import { OrgLunchChat } from "./OrgLunchChat";
 
 interface Card {
   id: number;
@@ -13,7 +14,7 @@ interface Card {
 
 const CARD_ICONS = [
   { icon: "🎒", label: "Backpack" },
-  { icon: "🚀", label: "Launch Box" },
+  { icon: "🚀", label: "Lunch Box" },
   { icon: "📚", label: "Notebook" },
   { icon: "🍎", label: "Fresh Apple" },
   { icon: "🎓", label: "Graduation Cap" },
@@ -72,7 +73,7 @@ const AD_CAMPAIGNS = [
 ];
 
 export const LunchGames = () => {
-  const [activeTab, setActiveTab] = useState<'videos' | 'memory' | 'quiz' | 'arcade' | 'breathing' | 'store'>('videos');
+  const [activeTab, setActiveTab] = useState<'chat' | 'videos' | 'memory' | 'quiz' | 'arcade' | 'breathing' | 'store'>('chat');
 
   // Points State (Persisted)
   const [points, setPoints] = useState<number>(() => {
@@ -335,7 +336,7 @@ export const LunchGames = () => {
               Break
             </span>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Launch Box & Casual Games</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Lunch Box & Casual Games</h2>
           <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
             Take a well-deserved mental break. Watch AdMob & AdSense videos to earn points, power up casual games, and claim reward passes.
           </p>
@@ -348,7 +349,7 @@ export const LunchGames = () => {
           </div>
           <div>
             <span className="text-[10px] uppercase font-bold tracking-wider text-amber-700 dark:text-amber-300 block">
-              Launch Points Balance
+              Lunch Points Balance
             </span>
             <span className="text-xl font-black text-amber-900 dark:text-amber-200">
               {points.toLocaleString()} <span className="text-xs font-bold text-amber-600 dark:text-amber-400">PTS</span>
@@ -368,15 +369,15 @@ export const LunchGames = () => {
       {/* Navigation Tabs */}
       <div className="flex flex-wrap items-center bg-slate-100 dark:bg-slate-900/60 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/50 gap-1">
         <button
-          onClick={() => setActiveTab('videos')}
+          onClick={() => setActiveTab('chat')}
           className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
-            activeTab === 'videos'
-              ? 'bg-indigo-600 text-slate-900 dark:text-white shadow-sm'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-900 dark:text-white'
+            activeTab === 'chat'
+              ? 'bg-indigo-600 text-white shadow-sm font-bold'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <Play className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Watch Videos (+PTS)</span>
+          <MessageSquare className="w-3.5 h-3.5 text-indigo-300" />
+          <span>Org Lounge & Chat</span>
         </button>
         <button
           onClick={() => setActiveTab('memory')}
@@ -423,6 +424,17 @@ export const LunchGames = () => {
           <span>Mindful Reset</span>
         </button>
         <button
+          onClick={() => setActiveTab('videos')}
+          className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+            activeTab === 'videos'
+              ? 'bg-indigo-600 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-900 dark:text-white'
+          }`}
+        >
+          <Play className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Watch Videos (+PTS)</span>
+        </button>
+        <button
           onClick={() => setActiveTab('store')}
           className={`flex items-center space-x-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
             activeTab === 'store'
@@ -434,6 +446,11 @@ export const LunchGames = () => {
           <span>Points Shop</span>
         </button>
       </div>
+
+      {/* Org Members Lounge & Chat */}
+      {activeTab === 'chat' && (
+        <OrgLunchChat />
+      )}
 
       {/* Watch Videos Tab (AdMob / AdSense Rewarded Videos) */}
       {activeTab === 'videos' && (
@@ -525,7 +542,7 @@ export const LunchGames = () => {
                   <div>
                     <h3 className="text-2xl font-black text-white">Reward Earned! 🎉</h3>
                     <p className="text-sm text-emerald-200 mt-1 font-semibold">
-                      You received +{selectedAd.rewardPoints} Launch Points for watching!
+                      You received +{selectedAd.rewardPoints} Lunch Points for watching!
                     </p>
                   </div>
                   <button
@@ -796,10 +813,10 @@ export const LunchGames = () => {
         <div className="space-y-6">
           <div className="border-b border-slate-200 dark:border-slate-700 pb-3">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
-              <Gift className="w-5 h-5 text-amber-500 mr-2" /> Launch Points Perks Shop
+              <Gift className="w-5 h-5 text-amber-500 mr-2" /> Lunch Points Perks Shop
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Redeem your Launch Points earned from AdMob/AdSense videos & casual games
+              Redeem your Lunch Points earned from AdMob/AdSense videos & casual games
             </p>
           </div>
 
@@ -851,7 +868,7 @@ export const LunchGames = () => {
                     <button
                       onClick={() => {
                         if (points < perk.cost) {
-                          alert(`You need ${perk.cost - points} more Launch Points! Watch AdMob/AdSense videos to earn more.`);
+                          alert(`You need ${perk.cost - points} more Lunch Points! Watch AdMob/AdSense videos to earn more.`);
                           return;
                         }
                         updatePoints(-perk.cost, `Redeemed ${perk.title}`);

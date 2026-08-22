@@ -22,8 +22,9 @@ export const KnowledgeCityBanner: React.FC<KnowledgeCityBannerProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-900 dark:text-white">Looking for individual courses?</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Visit our sister marketplace Knowledge City for standalone masterclasses.</p>
+              <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
+                looking for self-paced solo courses or to teach a course independently?
+              </p>
             </div>
           </div>
           <button
@@ -56,16 +57,9 @@ export const KnowledgeCityBanner: React.FC<KnowledgeCityBannerProps> = ({
                 </span>
                 <span className="text-xs text-indigo-200/60 font-medium">Individual Courses Portal</span>
               </div>
-              <h3 className="text-base font-bold text-white mt-1">
-                {variant === 'instructor'
-                  ? "Looking to upload individual freelance courses without an organization?"
-                  : "Looking to buy individual self-paced courses or masterclasses?"}
+              <h3 className="text-sm sm:text-base font-bold text-white mt-1">
+                looking for self-paced solo courses or to teach a course independently?
               </h3>
-              <p className="text-xs text-slate-300 max-w-xl mt-0.5 leading-relaxed">
-                {variant === 'instructor'
-                  ? "Backpack is reserved for accredited organizations and institutions. Independent instructors can publish, monetize, and sell courses freely on Knowledge City."
-                  : "Backpack handles institutional and organization-backed cohorts. For individual a-la-carte learning with immediate access, visit Knowledge City."}
-              </p>
             </div>
           </div>
 

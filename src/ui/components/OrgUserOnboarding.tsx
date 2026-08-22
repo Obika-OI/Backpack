@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAppContext } from "../../store/AppContext";
 import { useAuth } from "../../store/AuthContext";
-import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, User, X, ArrowRight } from "lucide-react";
+import { UserPlus, UserCheck, GraduationCap, Briefcase, Trash2, Search, Mail, ShieldCheck, CheckCircle2, Upload, Award, Users, User, X, ArrowRight, PauseCircle, PlayCircle } from "lucide-react";
 import { OrgMember, User as AppUser, Role } from "../../types";
 import { db } from "../../lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
@@ -12,8 +12,9 @@ interface OrgUserOnboardingProps {
 }
 
 export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }) => {
+  const formRef = useRef<HTMLFormElement>(null);
   const { currentUser } = useAuth();
-  const { orgMembers, addOrgMember, deleteOrgMember, updateOrgMember, courses, organizations } = useAppContext();
+  const { orgMembers, addOrgMember, deleteOrgMember, updateOrgMember, courses, organizations, enrollmentRequests } = useAppContext();
 
   const [activeTab, setActiveTab] = useState<'instructors' | 'students'>('instructors');
   const [searchTerm, setSearchTerm] = useState("");
@@ -34,6 +35,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
   const [requiresDocuments, setRequiresDocuments] = useState(true);
   const [inviteNote, setInviteNote] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch registered users on Backpack from Firestore
@@ -69,23 +71,55 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     fetchRegisteredUsers();
   }, [currentUser?.id]);
 
-  if (!currentUser) return null;
-
-  const currentOrgId = currentUser.role === 'organization' ? `org_${currentUser.id}` : 
-    (orgMembers.find(m => m.email?.toLowerCase() === currentUser.email?.toLowerCase())?.orgId || "");
+  const currentOrgId = currentUser ? (currentUser.role === 'organization' ? `org_${currentUser.id}` : 
+    (orgMembers.find(m => m.email?.toLowerCase() === currentUser.email?.toLowerCase())?.orgId || "")) : "";
   
-  const myOrg = organizations.find(o => o.id === currentOrgId || o.ownerId === currentUser.id);
+  const myOrg = organizations.find(o => o.id === currentOrgId || (currentUser && o.ownerId === currentUser.id));
   const orgType = myOrg?.orgType || 'basic';
   const classOrCourseText = orgType === 'basic' ? 'Class' : 'Course';
 
   // Filter members belonging to this org
   const orgStaff = orgMembers.filter(
-    (m) => (m.orgId === currentOrgId || m.orgId === currentUser.id) && m.role === 'instructor'
+    (m) => currentUser && (m.orgId === currentOrgId || m.orgId === currentUser.id) && m.role === 'instructor'
   );
 
-  const orgStudents = orgMembers.filter(
-    (m) => (m.orgId === currentOrgId || m.orgId === currentUser.id) && m.role === 'student'
+  // Student Directory: Only show students who have been explicitly invited or enrolled into courses/programs
+  const memberStudents = orgMembers.filter(
+    (m) => currentUser && (m.orgId === currentOrgId || m.orgId === currentUser.id) &&
+           m.role === 'student' &&
+           ['invited', 'active', 'suspended', 'graduated'].includes(m.status || 'invited')
   );
+
+  // Students with approved enrollment requests for this organization
+  const approvedReqs = enrollmentRequests.filter(
+    (r) => currentUser && (r.orgId === currentOrgId || r.orgId === currentUser.id || r.orgId === `org_${currentUser.id}`) &&
+           r.status === 'approved'
+  );
+
+  const orgStudents: OrgMember[] = [...memberStudents];
+
+  approvedReqs.forEach((req) => {
+    const alreadyListed = orgStudents.some(
+      (m) => (req.userEmail && m.email?.toLowerCase() === req.userEmail.toLowerCase()) || (req.userId && m.id === req.userId)
+    );
+    if (!alreadyListed && req.userEmail) {
+      orgStudents.push({
+        id: req.userId || generateId('member'),
+        orgId: currentOrgId,
+        name: req.userName || 'Enrolled Student',
+        email: req.userEmail.toLowerCase(),
+        role: 'student',
+        department: req.courseTitle || 'Enrolled Course',
+        courseIds: req.courseId ? [req.courseId] : [],
+        joinedAt: req.createdAt ? new Date(req.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently',
+        status: 'active',
+        requiresPayment: req.paymentStatus === 'unpaid',
+        requiresDocuments: false,
+      });
+    }
+  });
+
+  if (!currentUser) return null;
 
   const myCourses = currentUser.role === 'organization' 
     ? courses.filter(c => c.orgId === currentUser.id || c.orgId === currentOrgId)
@@ -93,6 +127,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
   const handleOnboardUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg("");
     if (!name.trim() || !email.trim()) return;
 
     setIsSubmitting(true);
@@ -102,18 +137,21 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     // Check if target email belongs to an organization account
     const matchedUser = registeredUsers.find(u => u.email?.toLowerCase() === cleanEmail);
     if (matchedUser && matchedUser.role === 'organization') {
-      setErrorMsg("Organization users cannot be invited to courses.");
+      setErrorMsg("Organization accounts cannot be invited as course students or staff.");
       setIsSubmitting(false);
       return;
     }
+
+    const defaultDept = activeTab === 'instructors' ? 'General Faculty' : 'General Program';
+    const targetRole: 'instructor' | 'student' = activeTab === 'instructors' ? 'instructor' : 'student';
 
     const newMember: OrgMember = {
       id: generateId('member'),
       orgId: currentOrgId,
       name: name.trim(),
       email: cleanEmail,
-      role: activeTab === 'instructors' ? 'instructor' : 'student',
-      department: department.trim() || (activeTab === 'instructors' ? 'General Faculty' : 'General Program'),
+      role: targetRole,
+      department: department.trim() || defaultDept,
       courseIds: targetCourseId ? [targetCourseId] : [],
       joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       status: 'invited',
@@ -125,9 +163,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     try {
       await addOrgMember(newMember);
 
-      setSuccessMsg(
-        `Successfully sent course invite to ${name} (${cleanEmail})!`
-      );
+      setSuccessMsg(`Successfully sent invitation to ${name} (${cleanEmail})!`);
       setName("");
       setEmail("");
       setDepartment("");
@@ -136,12 +172,11 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
       setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err) {
       console.error("Error inviting member:", err);
+      setErrorMsg("Failed to onboard user. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const formRef = useRef<HTMLFormElement>(null);
 
   const handleSelectUserAndRedirect = (userToSelect: AppUser) => {
     setName(userToSelect.name || "");
@@ -151,7 +186,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
     else if (userToSelect.role === 'student') setActiveTab('students');
     setShowAppUsersModal(false);
     setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('onboarding-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   };
 
@@ -179,13 +214,14 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
         if (parts.length >= 2) {
           const name = parts[0].trim();
           const email = parts[1].trim().toLowerCase();
+          const targetRole: 'instructor' | 'student' = activeTab === 'instructors' ? 'instructor' : 'student';
 
           const newMember: OrgMember = {
             id: generateId('member'),
             orgId: currentOrgId,
             name,
             email,
-            role: activeTab === 'instructors' ? 'instructor' : 'student',
+            role: targetRole,
             department: activeTab === 'instructors' ? 'General Faculty' : 'General Program',
             courseIds: targetCourseId ? [targetCourseId] : [],
             joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -233,7 +269,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">User Onboarding Portal</h2>
           <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
-            Invite instructors as staff members or enroll students into your organization's learning ecosystem.
+            Manage staff instructors and enrolled students with granular control.
           </p>
         </div>
 
@@ -243,25 +279,27 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
             onClick={() => {
               setActiveTab('instructors');
               setSuccessMsg("");
+              setErrorMsg("");
             }}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'instructors'
-                ? 'bg-indigo-600 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-900 dark:text-white'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Briefcase className="w-3.5 h-3.5" />
-            <span>Staff Instructors ({orgStaff.length})</span>
+            <span>Staff ({orgStaff.length})</span>
           </button>
           <button
             onClick={() => {
               setActiveTab('students');
               setSuccessMsg("");
+              setErrorMsg("");
             }}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'students'
-                ? 'bg-indigo-600 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-900 dark:text-white'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
@@ -277,11 +315,18 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
         </div>
       )}
 
+      {errorMsg && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 p-4 rounded-xl flex items-center space-x-3 text-sm font-medium animate-in fade-in">
+          <X className="w-5 h-5 flex-shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
       {/* Quick Onboarding Form */}
       <form ref={formRef} onSubmit={handleOnboardUser} className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-3">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center">
-            <UserPlus className="w-4 h-4 mr-2 text-indigo-500" />
+            {activeTab === 'instructors' ? <Briefcase className="w-4 h-4 mr-2 text-indigo-500" /> : <GraduationCap className="w-4 h-4 mr-2 text-indigo-500" />}
             {activeTab === 'instructors' ? 'Invite New Instructor Staff' : 'Invite New Student User'}
           </h3>
           <div className="flex items-center space-x-2">
@@ -338,7 +383,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={activeTab === 'instructors' ? 'e.g. Dr. Amara Okafor' : 'e.g. Kwame Mensah'}
+              placeholder={activeTab === 'instructors' ? 'e.g. Dr. Amara Okafor' : activeTab === 'admins' ? 'e.g. David Sterling' : 'e.g. Kwame Mensah'}
               className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -357,19 +402,19 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              {activeTab === 'instructors' ? 'Department / Subject' : 'Grade / Program Track'}
+              {activeTab === 'instructors' ? 'Department / Subject' : activeTab === 'admins' ? 'Admin Role / Title' : 'Grade / Program Track'}
             </label>
             <input
               type="text"
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              placeholder={activeTab === 'instructors' ? 'e.g. Computer Science' : 'e.g. Full-Stack Cohort 1'}
+              placeholder={activeTab === 'instructors' ? 'e.g. Computer Science' : activeTab === 'admins' ? 'e.g. Academic Dean / Operations' : 'e.g. Full-Stack Cohort 1'}
               className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
         </div>
 
-        {myCourses.length > 0 && !courseId && (
+        {myCourses.length > 0 && !courseId && activeTab !== 'admins' && (
           <div className="pt-1">
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Assign to {classOrCourseText} (Optional)
@@ -433,10 +478,18 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           <button
             type="submit"
             disabled={isSubmitting || !name.trim() || !email.trim()}
-            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-slate-900 dark:text-white rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-sm"
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-sm"
           >
             <UserCheck className="w-4 h-4" />
-            <span>{isSubmitting ? 'Inviting...' : activeTab === 'instructors' ? 'Invite Staff' : 'Invite Student'}</span>
+            <span>
+              {isSubmitting
+                ? 'Processing...'
+                : activeTab === 'instructors'
+                ? 'Invite Staff'
+                : activeTab === 'admins'
+                ? 'Add Admin Manager'
+                : 'Invite Student'}
+            </span>
           </button>
         </div>
       </form>
@@ -470,7 +523,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
               {filteredStaff.map((member) => (
                 <div
                   key={member.id}
-                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-300 dark:border-slate-600 transition"
+                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-600 transition"
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
@@ -501,7 +554,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
 
                   <button
                     onClick={() => deleteOrgMember(member.id)}
-                    className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-white dark:bg-slate-800 transition"
+                    className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer"
                     title="Remove Staff"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -516,73 +569,117 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredStudents.map((member) => (
-              <div
-                key={member.id}
-                className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/70 p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-300 dark:border-slate-600 transition"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
-                    <GraduationCap className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h4 className="font-bold text-slate-900 dark:text-white text-sm">{member.name}</h4>
-                      <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded-full">
-                        Student
-                      </span>
-                      {member.status === 'invited' && (
-                        <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full">
-                          Invited
+            {filteredStudents.map((member) => {
+              const isAccepted = member.status === 'active' || member.status === 'suspended' || member.status === 'graduated';
+              const isSuspended = member.status === 'suspended';
+
+              return (
+                <div
+                  key={member.id}
+                  className={`bg-slate-50 dark:bg-slate-900/50 border p-4 rounded-xl flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-600 transition ${
+                    isSuspended ? 'border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/5' : 'border-slate-200 dark:border-slate-700/70'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                      isSuspended ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'
+                    }`}>
+                      <GraduationCap className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">{member.name}</h4>
+                        <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded-full">
+                          Student
                         </span>
-                      )}
-                      {member.status === 'graduated' && (
-                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full flex items-center">
-                          <Award className="w-3 h-3 mr-0.5" /> Graduated
-                        </span>
+                        {member.status === 'invited' && (
+                          <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full">
+                            Invited
+                          </span>
+                        )}
+                        {member.status === 'active' && (
+                          <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full">
+                            Active
+                          </span>
+                        )}
+                        {member.status === 'suspended' && (
+                          <span className="px-2 py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold rounded-full">
+                            Suspended
+                          </span>
+                        )}
+                        {member.status === 'graduated' && (
+                          <span className="px-2 py-0.5 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold rounded-full flex items-center">
+                            <Award className="w-3 h-3 mr-0.5" /> Graduated
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center mt-0.5">
+                        <Mail className="w-3 h-3 mr-1" /> {member.email}
+                      </p>
+                      {member.department && (
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                          Track: {member.department}
+                        </p>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center mt-0.5">
-                      <Mail className="w-3 h-3 mr-1" /> {member.email}
-                    </p>
-                    {member.department && (
-                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                        Track: {member.department}
-                      </p>
+                  </div>
+
+                  <div className="flex items-center space-x-1">
+                    {/* For accepted students: CANNOT delete, only suspend / unsuspend / graduate */}
+                    {isAccepted ? (
+                      <>
+                        {isSuspended ? (
+                          <button
+                            onClick={() => updateOrgMember(member.id, { status: 'active' })}
+                            className="px-2.5 py-1 text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg font-semibold flex items-center transition cursor-pointer"
+                            title="Reactivate student access"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5 mr-1" /> Unsuspend
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => updateOrgMember(member.id, { status: 'suspended' })}
+                            className="px-2.5 py-1 text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg font-semibold flex items-center transition cursor-pointer"
+                            title="Suspend student access (deletion is blocked for accepted students)"
+                          >
+                            <PauseCircle className="w-3.5 h-3.5 mr-1" /> Suspend
+                          </button>
+                        )}
+
+                        {member.status !== 'graduated' && (
+                          <button
+                            onClick={() => updateOrgMember(member.id, { status: 'graduated' })}
+                            className="p-2 text-slate-500 dark:text-slate-400 hover:text-emerald-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer"
+                            title="Graduate student"
+                          >
+                            <Award className="w-4 h-4" />
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      /* For pending invited students: organization CAN cancel / remove the invitation */
+                      <button
+                        onClick={() => deleteOrgMember(member.id)}
+                        className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer"
+                        title="Cancel Invitation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
                 </div>
-
-                <div className="flex items-center space-x-1">
-                  {member.status !== 'graduated' && (
-                    <button
-                      onClick={() => updateOrgMember(member.id, { status: 'graduated' })}
-                      className="p-2 text-slate-500 dark:text-slate-400 hover:text-emerald-500 rounded-lg hover:bg-slate-200 dark:hover:bg-white dark:bg-slate-800 transition"
-                      title="Graduate student"
-                    >
-                      <Award className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => deleteOrgMember(member.id)}
-                    className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-200 dark:hover:bg-white dark:bg-slate-800 transition"
-                    title="Remove student"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* Search Registered Users Modal */}
       {showAppUsersModal && (() => {
-        const targetRole = activeTab === 'instructors' ? 'instructor' : 'student';
         const filteredAppUsers = registeredUsers.filter(u => {
           if (u.role === 'organization') return false;
-          if (u.role !== targetRole) return false;
+          if (activeTab === 'instructors' && u.role !== 'instructor') return false;
+          if (activeTab === 'students' && u.role !== 'student') return false;
           if (appUsersSearch.trim()) {
             const q = appUsersSearch.toLowerCase().trim();
             return u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
@@ -596,10 +693,10 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
               <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center">
-                    <Users className="w-5 h-5 text-indigo-500 mr-2" /> Registered {activeTab === 'instructors' ? 'Instructors' : 'Students'}
+                    <Users className="w-5 h-5 text-indigo-500 mr-2" /> Registered {activeTab === 'instructors' ? 'Instructors' : activeTab === 'admins' ? 'Users for Admin Role' : 'Students'}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Directly search and invite registered {activeTab === 'instructors' ? 'instructors' : 'students'} on the platform
+                    Directly search registered users on the platform to onboard
                   </p>
                 </div>
                 <button
@@ -616,7 +713,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                   <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
                   <input
                     type="text"
-                    placeholder={`Search registered ${activeTab === 'instructors' ? 'instructors' : 'students'} by name or email...`}
+                    placeholder="Search registered users by name or email..."
                     value={appUsersSearch}
                     onChange={(e) => setAppUsersSearch(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -628,7 +725,7 @@ export const OrgUserOnboarding: React.FC<OrgUserOnboardingProps> = ({ courseId }
                 {loadingRegisteredUsers ? (
                   <div className="text-center py-8 text-xs text-slate-500">Loading registered users...</div>
                 ) : filteredAppUsers.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-slate-500">No registered {activeTab === 'instructors' ? 'instructors' : 'students'} found matching query</div>
+                  <div className="text-center py-8 text-xs text-slate-500">No registered users found matching query</div>
                 ) : (
                   filteredAppUsers.map(u => {
                     const isAlreadyMember = orgMembers.some(m => m.email?.toLowerCase() === u.email?.toLowerCase() && (m.orgId === currentOrgId || m.orgId === currentUser.id));

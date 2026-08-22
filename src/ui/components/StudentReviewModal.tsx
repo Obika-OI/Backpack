@@ -140,7 +140,7 @@ export const StudentReviewModal: React.FC<StudentReviewModalProps> = ({
                             <div className="flex items-center space-x-3">
                                 <DollarSign className="w-5 h-5 text-indigo-500" />
                                 <div>
-                                    <span className="font-bold text-slate-900 dark:text-white block text-xs">Course Tuition Fee</span>
+                                    <span className="font-bold text-slate-900 dark:text-white block text-xs">Course Tuition Fee (Payable Upon Acceptance)</span>
                                     <span className="text-sm font-black text-indigo-600 dark:text-indigo-400">
                                         {course.currency || 'NGN'} {course.price.toLocaleString()}
                                     </span>
@@ -152,6 +152,51 @@ export const StudentReviewModal: React.FC<StudentReviewModalProps> = ({
                                     {course.paymentTermsAllowed === 'both' ? 'Full & Installments' : (course.paymentTermsAllowed || 'Full Payment')}
                                 </span>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Special Needs & Health Accommodations Requested */}
+                    {request.accommodationsRequested && request.accommodationsRequested.hasSpecialNeeds && (
+                        <div className="p-4 bg-purple-50/70 dark:bg-purple-950/30 rounded-2xl border border-purple-200 dark:border-purple-900/50 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <h4 className="font-bold text-xs text-purple-950 dark:text-purple-200 flex items-center">
+                                    <ShieldCheck className="w-4 h-4 mr-1.5 text-purple-600 dark:text-purple-400" />
+                                    Special Needs / Health Accommodations Requested
+                                </h4>
+                                <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold border border-purple-500/20">
+                                    Accommodation Plan
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                {request.accommodationsRequested.extraExamTimeMinutes ? (
+                                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-purple-900/40 flex items-center justify-between">
+                                        <span className="text-slate-600 dark:text-slate-400">Extra Exam Time:</span>
+                                        <strong className="text-purple-600 dark:text-purple-400">+{request.accommodationsRequested.extraExamTimeMinutes} Mins</strong>
+                                    </div>
+                                ) : null}
+
+                                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-purple-900/40 flex items-center justify-between">
+                                    <span className="text-slate-600 dark:text-slate-400">Assistive Features:</span>
+                                    <div className="flex gap-1">
+                                        {request.accommodationsRequested.enableScreenReaderMode && (
+                                            <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold">TTS / Audio</span>
+                                        )}
+                                        {request.accommodationsRequested.enableDyslexiaFont && (
+                                            <span className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 text-[10px] font-bold">Dyslexia Font</span>
+                                        )}
+                                        {!request.accommodationsRequested.enableScreenReaderMode && !request.accommodationsRequested.enableDyslexiaFont && (
+                                            <span className="text-slate-400">Standard</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {request.accommodationsRequested.specialNotes && (
+                                <p className="text-xs text-purple-950 dark:text-purple-200 bg-white/70 dark:bg-slate-900/70 p-2.5 rounded-xl border border-purple-100 dark:border-purple-900/30 italic">
+                                    "{request.accommodationsRequested.specialNotes}"
+                                </p>
+                            )}
                         </div>
                     )}
 

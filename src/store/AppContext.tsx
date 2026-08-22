@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, getDoc } from 'firebase/firestore';
 import { 
   Assessment, 
   Submission, 
@@ -18,6 +18,7 @@ import {
 } from '../types';
 import { useAuth } from './AuthContext';
 import { sendPushNotification } from '../lib/pushNotifications';
+import { sanitizeForFirestore } from '../lib/sanitize';
 
 interface AppState {
   organizations: Organization[];
@@ -57,7 +58,7 @@ interface AppState {
   sendMessage: (msg: ChatMessage) => Promise<void>;
   addAssessment: (assessment: Assessment) => Promise<void>;
   addSubmission: (submission: Submission) => Promise<void>;
-  updateSubmissionScore: (id: string, score: number, feedback: string) => Promise<void>;
+  updateSubmissionScore: (id: string, score: number, feedback?: string, detailedAnswers?: QuestionAnswer[], manualScore?: number) => Promise<void>;
   addScheduleEvent: (event: ScheduleEvent) => Promise<void>;
   updateScheduleEvent: (id: string, updates: Partial<ScheduleEvent>) => Promise<void>;
   deleteScheduleEvent: (id: string) => Promise<void>;
@@ -68,17 +69,6 @@ interface AppState {
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
-
-const sanitizeForFirestore = <T extends object>(obj: T): T => {
-  const cleaned = {} as Record<string, unknown>;
-  const record = obj as Record<string, unknown>;
-  for (const key in record) {
-    if (record[key] !== undefined) {
-      cleaned[key] = record[key];
-    }
-  }
-  return cleaned as T;
-};
 
 // Helper function to extract user data whether stored as an object or legacy array
 const getUserData = (data: Record<string, unknown> | undefined): Record<string, unknown> => {
@@ -103,7 +93,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [scheduleEvents, setScheduleEvents] = useState<ScheduleEvent[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   // Helper to update personalInformation within the user object of a backpack document
@@ -112,23 +101,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const docRef = doc(db, 'backpack', userId);
     try {
       const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const userObj = getUserData(data);
-        const personalInfo = (userObj.personalInformation as Record<string, unknown>) || {};
-        
-        const updatedPersonalInfo = {
-          ...personalInfo,
-          ...sanitizeForFirestore(updates)
-        };
+      const data = docSnap.exists() ? docSnap.data() : {};
+      const userObj = getUserData(data);
+      const personalInfo = (userObj.personalInformation as Record<string, unknown>) || {};
+      
+      const updatedPersonalInfo = {
+        ...personalInfo,
+        ...sanitizeForFirestore(updates)
+      };
 
-        const updatedUser = {
-          ...userObj,
-          personalInformation: updatedPersonalInfo
-        };
+      const updatedUser = sanitizeForFirestore({
+        ...userObj,
+        personalInformation: updatedPersonalInfo
+      });
 
-        await updateDoc(docRef, { user: updatedUser });
-      }
+      await setDoc(docRef, { user: updatedUser }, { merge: true });
     } catch (err) {
       console.error(`updateBackpackPersonalInfo for user ${userId} failed:`, err);
     }
@@ -144,17 +131,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const docRef = doc(db, 'backpack', userId);
     try {
       const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const userObj = getUserData(data);
-        const currentList: T[] = Array.isArray(userObj[field]) ? userObj[field] : [];
-        const updatedList = updateFn(currentList);
-        const updatedUser = {
-          ...userObj,
-          [field]: updatedList
-        };
-        await updateDoc(docRef, { user: updatedUser });
-      }
+      const data = docSnap.exists() ? docSnap.data() : {};
+      const userObj = getUserData(data);
+      const currentList: T[] = Array.isArray(userObj[field]) ? userObj[field] as T[] : [];
+      const updatedList = updateFn(currentList);
+      const updatedUser = sanitizeForFirestore({
+        ...userObj,
+        [field]: updatedList
+      });
+      await setDoc(docRef, { user: updatedUser }, { merge: true });
     } catch (err) {
       console.error(`Error updating ${field} in backpack/${userId}:`, err);
     }
@@ -470,6 +455,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           linkUrl: `/course/${req.courseId}`
         });
       }
+
+      // Automatically sync approved student into orgMembers roster if not already present
+      if (status === 'approved' && req.userEmail) {
+        const cleanEmail = req.userEmail.toLowerCase();
+        const targetOrgId = req.orgId || `org_${req.userId}`;
+        const alreadyMember = orgMembers.some(
+          m => m.email?.toLowerCase() === cleanEmail && (m.orgId === targetOrgId || m.orgId === req.orgId)
+        );
+        if (!alreadyMember) {
+          const newMember: OrgMember = {
+            id: generateId('member'),
+            orgId: targetOrgId,
+            name: req.userName || 'Enrolled Student',
+            email: cleanEmail,
+            role: 'student',
+            department: req.courseTitle || 'Enrolled Program',
+            courseIds: req.courseId ? [req.courseId] : [],
+            joinedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            status: 'active',
+            requiresPayment: req.paymentStatus === 'unpaid',
+            requiresDocuments: false,
+          };
+          addOrgMember(newMember).catch(err => console.warn('Could not auto-add enrolled student to org members', err));
+        }
+      }
     }
 
     setEnrollmentRequests(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
@@ -506,10 +516,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setEnrollmentRequests(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
   };
 
-  // Admission Session Management
+  // Admission Session Management (Restricted strictly to organizations / organization admins)
   const openCourseAdmission = async (courseId: string, sessionId?: string) => {
     const course = courses.find(c => c.id === courseId);
     if (!course) return;
+
+    // Students and instructors cannot manage sessions or open/close admission
+    const isOrgOrAdmin = currentUser?.role === 'organization' || currentUser?.role === 'admin' || (course.orgId === currentUser?.id || course.orgId === `org_${currentUser?.id}`);
+    if (!isOrgOrAdmin) {
+      console.warn("Permission denied: Only organizations can manage course sessions and admissions.");
+      return;
+    }
 
     const sessions = course.admissionSessions ? [...course.admissionSessions] : [];
     let activeSession = sessionId ? sessions.find(s => s.id === sessionId) : sessions.find(s => s.status === 'open');
@@ -553,6 +570,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const course = courses.find(c => c.id === courseId);
     if (!course) return;
 
+    // Students and instructors cannot manage sessions or open/close admission
+    const isOrgOrAdmin = currentUser?.role === 'organization' || currentUser?.role === 'admin' || (course.orgId === currentUser?.id || course.orgId === `org_${currentUser?.id}`);
+    if (!isOrgOrAdmin) {
+      console.warn("Permission denied: Only organizations can manage course sessions and admissions.");
+      return;
+    }
+
     const sessions = (course.admissionSessions || []).map(s => 
       s.id === course.activeSessionId ? { ...s, status: 'closed' as const, closedAt: new Date().toISOString() } : s
     );
@@ -579,6 +603,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     const course = courses.find(c => c.id === courseId);
     if (!course) return;
+
+    // Students and instructors cannot manage sessions
+    const isOrgOrAdmin = currentUser?.role === 'organization' || currentUser?.role === 'admin' || (course.orgId === currentUser?.id || course.orgId === `org_${currentUser?.id}`);
+    if (!isOrgOrAdmin) {
+      console.warn("Permission denied: Only organizations can create course admission sessions.");
+      return;
+    }
 
     const newSessionId = generateId('ses');
     const autoOpen = sessionData.autoOpen !== false; // default true
@@ -617,6 +648,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const updateCourseAdmissionSession = async (courseId: string, sessionId: string, updates: Partial<AdmissionSession>) => {
     const course = courses.find(c => c.id === courseId);
     if (!course || !course.admissionSessions) return;
+
+    // Students and instructors cannot manage sessions
+    const isOrgOrAdmin = currentUser?.role === 'organization' || currentUser?.role === 'admin' || (course.orgId === currentUser?.id || course.orgId === `org_${currentUser?.id}`);
+    if (!isOrgOrAdmin) {
+      console.warn("Permission denied: Only organizations can edit course admission sessions.");
+      return;
+    }
 
     const sessions = course.admissionSessions.map(s => s.id === sessionId ? { ...s, ...updates } : s);
     const updatedCourseData: Partial<Course> = { admissionSessions: sessions };
@@ -690,6 +728,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteOrgMember = async (id: string) => {
     const member = orgMembers.find(m => m.id === id);
+    if (member) {
+      const isEnrolled = enrollmentRequests.some(r => r.userEmail?.toLowerCase() === member.email?.toLowerCase() || r.userId === member.userId || r.userId === member.id);
+      if (member.role === 'student' && (member.status !== 'invited' || isEnrolled)) {
+        alert("🔒 Enforced Safeguard: Students who have enrolled into a course cannot be deleted. You can Suspend, Reactivate, or Mark as Graduated instead.");
+        return;
+      }
+    }
     if (member && member.orgId) {
       const targetUid = member.orgId.startsWith('org_') ? member.orgId.replace('org_', '') : member.orgId;
       await updateBackpackUserField<OrgMember>(targetUid, 'orgMembers', (list) =>
@@ -771,14 +816,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setSubmissions(prev => [...prev.filter(s => s.id !== submission.id), cleaned]);
   };
 
-  const updateSubmissionScore = async (id: string, score: number, feedback: string) => {
+  const updateSubmissionScore = async (id: string, score: number, feedback?: string, detailedAnswers?: QuestionAnswer[], manualScore?: number) => {
     const sub = submissions.find(s => s.id === id);
+    const updatedFields: Partial<Submission> = {
+      score,
+      feedback: feedback || '',
+      status: 'graded',
+      gradedAt: new Date().toISOString()
+    };
+    if (detailedAnswers) updatedFields.answers = detailedAnswers;
+    if (manualScore !== undefined) updatedFields.manualScore = manualScore;
+
     if (sub && sub.userId) {
       await updateBackpackUserField<Submission>(sub.userId, 'submissions', (list) =>
-        list.map(s => s.id === id ? { ...s, score, feedback, status: 'graded' } : s)
+        list.map(s => s.id === id ? { ...s, ...updatedFields } : s)
       );
     }
-    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, score, feedback, status: 'graded' } : s));
+    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, ...updatedFields } : s));
   };
 
   // Schedule Events (stored in backpack/{targetId}.user.scheduleEvents)
@@ -803,12 +857,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setScheduleEvents(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
     if (updates.isActive) {
       const evt = scheduleEvents.find(e => e.id === id);
-      if (evt) {
+      // Organization and instructors who initiated should not get call notification
+      const isInitiator = currentUser?.id && (evt?.instructorId === currentUser.id || evt?.creatorId === currentUser.id || evt?.orgId === currentUser.id);
+      if (evt && !isInitiator) {
         addNotification({
           title: `📹 Live Class Started: ${evt.title}`,
           message: `The live stream for this class has officially started. Click to join now!`,
           type: 'live_class',
-          linkUrl: `/course/${evt.courseId}`
+          linkUrl: `/course/${evt.courseId}?liveCall=true`
         });
       }
     }

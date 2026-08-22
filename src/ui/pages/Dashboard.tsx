@@ -5,7 +5,7 @@ import {
     CheckCircle, XCircle, Clock, BookOpen, TrendingUp, Award,
     PlayCircle, Eye, CreditCard, Ban, AlertTriangle, RotateCcw,
     DoorOpen, DoorClosed, Settings2, Mail, UserCheck, Paperclip,
-    Bell, Trash2, Building2
+    Trash2, Building2
 } from "lucide-react";
 import { AnalyticsOverview } from "../components/AnalyticsOverview";
 import { StudentReviewModal } from "../components/StudentReviewModal";
@@ -56,11 +56,13 @@ const Dashboard = () => {
 
     // Student Dashboard Logic
     const studentRequests = enrollmentRequests.filter(r => r.userId === currentUser.id);
-    const studentInvites = orgMembers.filter(m => 
-        m.email?.toLowerCase() === currentUser.email?.toLowerCase() && 
-        m.status === 'invited' && 
-        m.role === 'student'
-    );
+    const userInvites = orgMembers.filter(m => {
+        if (m.email?.toLowerCase() !== currentUser.email?.toLowerCase() || m.status !== 'invited') {
+            return false;
+        }
+        const targetCourse = courses.find(c => m.courseIds?.includes(c.id) || c.orgId === m.orgId);
+        return !!targetCourse;
+    });
     const approvedCoursesIds = studentRequests
         .filter(r => r.status === 'approved' && (courses.find(c => c.id === r.courseId)?.price === 0 || r.paymentStatus === 'paid'))
         .map(r => r.courseId);
@@ -81,8 +83,11 @@ const Dashboard = () => {
                     </div>
                 </div>
 
+                {/* Small Knowledge City Redirect Card */}
+                <KnowledgeCityBanner variant="compact" />
+
                 {/* Dedicated Pending Course Invitations Card */}
-                {studentInvites.length > 0 && (
+                {userInvites.length > 0 && (
                     <div id="pending-course-invitations" className="bg-white dark:bg-slate-800 border-2 border-indigo-500/30 dark:border-indigo-500/40 rounded-3xl p-6 space-y-5 shadow-md">
                         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-4">
                             <div className="flex items-center space-x-3">
@@ -93,22 +98,23 @@ const Dashboard = () => {
                                     <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center">
                                         Pending Course Invitations
                                         <span className="ml-2 px-2.5 py-0.5 text-xs font-bold bg-indigo-600 text-white rounded-full">
-                                            {studentInvites.length}
+                                            {userInvites.length}
                                         </span>
                                     </h2>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        Direct course invitations issued by partner organizations for your student enrollment
+                                        Direct course invitations issued by partner organizations for your enrollment
                                     </p>
                                 </div>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {studentInvites.map(invite => {
+                            {userInvites.map(invite => {
                                 const targetCourse = courses.find(c => invite.courseIds?.includes(c.id)) || courses.find(c => c.orgId === invite.orgId);
                                 if (!targetCourse) return null;
 
                                 const sponsoringOrg = organizations.find(o => o.id === invite.orgId || o.id === targetCourse.orgId || o.ownerId === invite.orgId);
+
                                 const requiresFee = invite.requiresPayment !== false && targetCourse.price > 0;
                                 const requiresDocs = invite.requiresDocuments !== false && (
                                     (invite.requiredDocNames && invite.requiredDocNames.length > 0) ||
@@ -132,7 +138,7 @@ const Dashboard = () => {
 
                                             {targetCourse.qualificationType && (
                                                 <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                                    Qualification: <span className="text-slate-700 dark:text-slate-200 font-semibold capitalize">{targetCourse.qualificationType}</span>
+                                                    Degree / Qualification: <span className="text-slate-700 dark:text-slate-200 font-semibold capitalize">{targetCourse.qualificationType}</span>
                                                 </div>
                                             )}
 
@@ -155,7 +161,7 @@ const Dashboard = () => {
 
                                                 {requiresDocs ? (
                                                     <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold flex items-center border border-amber-500/20">
-                                                        <Paperclip className="w-3.5 h-3.5 mr-1" /> Docs Required
+                                                        <Paperclip className="w-3.5 h-3.5 mr-1" /> Document Requirements
                                                     </span>
                                                 ) : (
                                                     <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center border border-emerald-500/20">
@@ -165,26 +171,28 @@ const Dashboard = () => {
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center space-x-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                        <div className="flex items-center space-x-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
                                             <button
+                                                type="button"
                                                 onClick={() => setJoiningInvite({ course: targetCourse, invite })}
-                                                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center space-x-1.5 shadow-md shadow-indigo-600/20"
+                                                className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center space-x-1.5 shadow-md shadow-indigo-600/20"
                                             >
-                                                <UserCheck className="w-4 h-4" />
+                                                <UserCheck className="w-4 h-4 shrink-0" />
                                                 <span>Accept & Join Course</span>
                                             </button>
 
                                             <button
+                                                type="button"
                                                 onClick={async () => {
                                                     if (confirm("Are you sure you want to decline this course invitation?")) {
                                                         await deleteOrgMember(invite.id);
                                                     }
                                                 }}
-                                                className="px-3 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition flex items-center space-x-1"
+                                                className="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center space-x-1.5 shrink-0"
                                                 title="Decline Invitation"
                                             >
-                                                <Trash2 className="w-4 h-4" />
-                                                <span className="hidden sm:inline">Decline</span>
+                                                <Trash2 className="w-4 h-4 shrink-0" />
+                                                <span>Decline</span>
                                             </button>
                                         </div>
                                     </div>
@@ -193,9 +201,6 @@ const Dashboard = () => {
                         </div>
                     </div>
                 )}
-
-                {/* Knowledge City banner for individual course purchases */}
-                <KnowledgeCityBanner variant="student" />
 
                 {/* KPI Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -513,12 +518,52 @@ const Dashboard = () => {
                         onJoinSuccess={() => setJoiningInvite(null)}
                     />
                 )}
+
+                {reapplyReq && courses.find(c => c.id === reapplyReq.courseId) && (
+                    <EnrollmentModal
+                        course={courses.find(c => c.id === reapplyReq.courseId)!}
+                        isReapplication={true}
+                        previousRequest={reapplyReq}
+                        onClose={() => setReapplyReq(null)}
+                        onEnroll={async (paymentMethod, documents, additionalDocs, studentNotes, sessionId, sessionName, accommodationsRequested) => {
+                            await addEnrollmentRequest({
+                                id: generateId('req'),
+                                userId: currentUser.id,
+                                userEmail: currentUser.email,
+                                userName: currentUser.name,
+                                orgId: reapplyReq.orgId,
+                                courseId: reapplyReq.courseId,
+                                courseTitle: reapplyReq.courseTitle,
+                                status: 'pending',
+                                paymentStatus: 'unpaid',
+                                paymentMethod,
+                                documents,
+                                additionalDocuments: additionalDocs,
+                                studentNotes,
+                                sessionId: sessionId || reapplyReq.sessionId,
+                                sessionName: sessionName || reapplyReq.sessionName,
+                                accommodationsRequested,
+                                appliedAt: new Date().toISOString()
+                            });
+                            setReapplyReq(null);
+                        }}
+                    />
+                )}
             </div>
         );
     }
 
-    // Organization / Instructor Dashboard Logic
-    const myOrgMemberRecords = orgMembers.filter(m => m.email === currentUser.email);
+    // Organization / Admin / Instructor Dashboard Logic
+    const myAdminRecord = orgMembers.find(
+        m => m.email?.toLowerCase() === currentUser.email?.toLowerCase() && m.role === 'admin'
+    );
+    const isOrgAdmin = currentUser.role === 'admin' || currentUser.role === 'organization' || !!myAdminRecord;
+
+    const myOrgId = currentUser.role === 'organization'
+        ? (currentUser.id.startsWith('org_') ? currentUser.id : `org_${currentUser.id}`)
+        : (myAdminRecord ? myAdminRecord.orgId : (currentUser.id.startsWith('org_') ? currentUser.id : `org_${currentUser.id}`));
+
+    const myOrgMemberRecords = orgMembers.filter(m => m.email?.toLowerCase() === currentUser.email?.toLowerCase());
     let assignedCourseIds: string[] = [];
     myOrgMemberRecords.forEach(record => {
         if (record.courseIds) {
@@ -526,12 +571,12 @@ const Dashboard = () => {
         }
     });
 
-    const myCourses = currentUser.role === 'organization'
-        ? courses.filter(c => c.orgId === currentUser.id || c.orgId === `org_${currentUser.id}`)
+    const myCourses = isOrgAdmin
+        ? courses.filter(c => c.orgId === currentUser.id || c.orgId === `org_${currentUser.id}` || c.orgId === myOrgId || c.orgId === myOrgId.replace('org_', ''))
         : courses.filter(c => assignedCourseIds.includes(c.id));
 
-    const orgRequests = currentUser.role === 'organization'
-        ? enrollmentRequests.filter(r => r.orgId === currentUser.id || r.orgId === `org_${currentUser.id}`)
+    const orgRequests = isOrgAdmin
+        ? enrollmentRequests.filter(r => r.orgId === currentUser.id || r.orgId === `org_${currentUser.id}` || r.orgId === myOrgId || r.orgId === myOrgId.replace('org_', ''))
         : enrollmentRequests.filter(r => assignedCourseIds.includes(r.courseId));
 
     return (
@@ -539,22 +584,24 @@ const Dashboard = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mb-1">
-                        {currentUser.role === 'organization' ? 'Organization Management Dashboard' : 'Instructor Teaching Dashboard'}
+                        {isOrgAdmin
+                            ? (currentUser.role === 'organization' ? 'Organization Management Dashboard' : 'Organization Portal (Admin Staff)')
+                            : 'Instructor Teaching Dashboard'}
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">
-                        {currentUser.role === 'organization'
-                            ? "Manage cohorts, review student admissions, inspect uploaded documents, and track analytics."
+                        {isOrgAdmin
+                            ? "Manage cohorts, review student admissions, inspect uploaded documents, and track analytics as administrative staff."
                             : "Manage your assigned institutional courses, student applications, and grading."}
                     </p>
                 </div>
             </div>
 
             {/* Knowledge City banner for independent/freelance instructors only */}
-            {currentUser.role === 'instructor' && (
+            {currentUser.role === 'instructor' && !isOrgAdmin && (
                 <KnowledgeCityBanner variant="instructor" />
             )}
 
-            {currentUser.role === 'organization' && (
+            {isOrgAdmin && (
                 <AnalyticsOverview
                     courses={myCourses}
                     progressData={userProgress}
